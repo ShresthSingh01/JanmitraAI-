@@ -1,0 +1,22 @@
+# IDE, tool, and worktree artifacts
+.kilo/
+.vscode/
+.idea/
+
+# Build and local deployment caches
+dist/
+dist-ssr/
+.firebase/
+
+# Environment files
+.env
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
