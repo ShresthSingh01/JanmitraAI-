@@ -3,27 +3,27 @@
 // Uses real Varanasi ward geography and comprehensive civic issue taxonomy
 
 export const VARANASI_WARD_CENTROIDS = {
-  "Ward 1": { name: "Assi / Nagwa", lat: 25.2885, lng: 83.0035 },
-  "Ward 2": { name: "Lanka / BHU", lat: 25.2805, lng: 82.9980 },
-  "Ward 3": { name: "Bhelupur", lat: 25.3015, lng: 82.9950 },
-  "Ward 4": { name: "Sigra", lat: 25.3150, lng: 82.9850 },
-  "Ward 5": { name: "Dashashwamedh", lat: 25.3080, lng: 83.0090 },
-  "Ward 6": { name: "Chowk", lat: 25.3125, lng: 83.0115 },
-  "Ward 7": { name: "Chetganj", lat: 25.3180, lng: 82.9930 },
-  "Ward 8": { name: "Kotwali", lat: 25.3210, lng: 83.0130 },
-  "Ward 9": { name: "Pandeypur", lat: 25.3420, lng: 82.9990 },
-  "Ward 10": { name: "Sarnath", lat: 25.3715, lng: 83.0230 },
-  "Ward 11": { name: "Shivpur", lat: 25.3580, lng: 82.9650 },
-  "Ward 12": { name: "Cantonment", lat: 25.3320, lng: 82.9780 }
+  "Ward 1": { name: "Assi / Nagwa", lat: 25.2874, lng: 83.0011 },
+  "Ward 2": { name: "Lanka / BHU", lat: 25.2753, lng: 82.9902 },
+  "Ward 3": { name: "Bhelupur", lat: 25.3002, lng: 82.9932 },
+  "Ward 4": { name: "Sigra", lat: 25.3141, lng: 82.9817 },
+  "Ward 5": { name: "Dashashwamedh", lat: 25.3088, lng: 83.0072 },
+  "Ward 6": { name: "Chowk", lat: 25.3172, lng: 83.0103 },
+  "Ward 7": { name: "Chetganj", lat: 25.3188, lng: 82.9919 },
+  "Ward 8": { name: "Kotwali", lat: 25.3245, lng: 83.0103 },
+  "Ward 9": { name: "Pandeypur", lat: 25.3425, lng: 82.9973 },
+  "Ward 10": { name: "Sarnath", lat: 25.3715, lng: 83.0211 },
+  "Ward 11": { name: "Shivpur", lat: 25.3579, lng: 82.9623 },
+  "Ward 12": { name: "Cantonment", lat: 25.3326, lng: 82.9758 }
 };
 
 export const LUCKNOW_WARD_CENTROIDS = {
-  "Ward 1": { name: "Hazratganj", lat: 26.8500, lng: 80.9420 },
-  "Ward 2": { name: "Alambagh", lat: 26.8150, lng: 80.9020 },
-  "Ward 3": { name: "Gomti Nagar", lat: 26.8620, lng: 80.9980 },
-  "Ward 4": { name: "Chowk Lucknow", lat: 26.8720, lng: 80.9080 },
-  "Ward 5": { name: "Indira Nagar", lat: 26.8850, lng: 80.9850 },
-  "Ward 6": { name: "Charbagh", lat: 26.8320, lng: 80.9220 }
+  "Ward 1": { name: "Hazratganj", lat: 26.8501, lng: 80.9424 },
+  "Ward 2": { name: "Alambagh", lat: 26.8147, lng: 80.9019 },
+  "Ward 3": { name: "Gomti Nagar", lat: 26.8643, lng: 80.9984 },
+  "Ward 4": { name: "Chowk Lucknow", lat: 26.8724, lng: 80.9079 },
+  "Ward 5": { name: "Indira Nagar", lat: 26.8855, lng: 80.9844 },
+  "Ward 6": { name: "Charbagh", lat: 26.8320, lng: 80.9222 }
 };
 
 const ISSUE_KEYWORDS = [

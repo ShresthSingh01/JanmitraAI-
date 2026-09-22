@@ -13,7 +13,7 @@ import {
 } from '../utils/icons';
 
 export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [step, setStep] = useState(1); // 1: Input, 2: Review, 3: Success
   const [mode, setMode] = useState('type'); // 'type' | 'voice'
   const [rawText, setRawText] = useState('');
@@ -233,14 +233,14 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
         <div className="flex items-center gap-2 mb-1">
           <span className="w-2 h-2 rounded-full bg-need-blue" />
           <span className="text-xs font-mono uppercase tracking-wider text-slate-500 font-semibold">
-            {currentConstituency.toUpperCase()} CITIZEN INTAKE
+            {currentConstituency.toUpperCase()} {t('citizen.badge', 'CIVIC INTAKE')}
           </span>
         </div>
         <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
-          Citizen Grievance Portal
+          {t('citizen.title', 'Citizen Grievance Portal')}
         </h1>
         <p className="text-xs md:text-sm text-slate-500 mt-1 leading-relaxed">
-          Submit civic complaints in Hindi or English with voice or photo evidence. Logged directly into constituency planning.
+          {t('citizen.subtitle', "Report civic issues directly to your Member of Parliament's office in your own voice or words.")}
         </p>
       </div>
 
@@ -250,21 +250,21 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono ${
             step >= 1 ? 'bg-need-blue text-white' : 'bg-slate-100 text-slate-500'
           }`}>1</span>
-          <span className="text-xs font-medium text-slate-700">Intake</span>
+          <span className="text-xs font-medium text-slate-700">{t('citizen.step_input', '1. Submit')}</span>
         </div>
         <IconChevronRight className="text-slate-300 w-4 h-4" />
         <div className="flex items-center gap-2">
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono ${
             step >= 2 ? 'bg-need-blue text-white' : 'bg-slate-100 text-slate-500'
           }`}>2</span>
-          <span className="text-xs font-medium text-slate-700">Review & Triage</span>
+          <span className="text-xs font-medium text-slate-700">{t('citizen.step_review', '2. AI Review')}</span>
         </div>
         <IconChevronRight className="text-slate-300 w-4 h-4" />
         <div className="flex items-center gap-2">
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono ${
             step >= 3 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
           }`}>3</span>
-          <span className="text-xs font-medium text-slate-700">Confirmation</span>
+          <span className="text-xs font-medium text-slate-700">{t('citizen.step_success', '3. Registered')}</span>
         </div>
       </div>
 
@@ -291,7 +291,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
                   mode === 'type' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <span>Type Details</span>
+                <span>{t('citizen.mode_type', 'Type Details')}</span>
               </button>
               <button
                 onClick={() => setMode('voice')}
@@ -303,7 +303,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
                 }`}
               >
                 <IconMicrophone className="w-3.5 h-3.5 text-need-blue" />
-                <span>Voice (Hindi / English)</span>
+                <span>{t('citizen.mode_voice', 'Voice (Hindi / English)')}</span>
               </button>
             </div>
 
@@ -317,7 +317,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
                   rows="4"
                   value={rawText}
                   onChange={(e) => setRawText(e.target.value)}
-                  placeholder="उदा: चेतगंज में मुख्य सड़क पर गहरा गड्ढा है जिससे दुर्घटना हो रही है, या अस्सी पर नाला चोक है..."
+                  placeholder={t('citizen.placeholder', "Describe your civic issue in Hindi, English, or Bhojpuri (e.g., 'सिगरा चौराहे पर सड़क टूटी है और जलभराव है', 'Ward 3 water pipeline leakage')...")}
                   className="w-full text-xs md:text-sm border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-1 focus:ring-need-blue bg-slate-50/50"
                 />
               </div>
@@ -334,7 +334,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
                   <IconMicrophone className="w-8 h-8" />
                 </button>
                 <span className="text-xs font-bold text-slate-800 mt-3">
-                  {isListening ? "Listening... बोलिए..." : "Tap to Speak (बोलने के लिए दबाएं)"}
+                  {isListening ? t('citizen.listening', "Listening... Please speak now") : t('citizen.start_voice', "Start Voice Recording")}
                 </span>
                 <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
                   Speak in Hindi or English. Speech is transcribed and categorized automatically.
@@ -351,7 +351,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
             {/* Photo Attachment Section */}
             <div className="border-t border-slate-100 pt-4">
               <label className="block text-xs font-semibold text-slate-700 mb-2">
-                Photo Evidence (Optional / फोटो संलग्न करें):
+                {t('citizen.attach_photo', 'Attach Photo Evidence')} (Optional):
               </label>
               
               <div className="flex items-center gap-3">
@@ -368,7 +368,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
                   className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <IconCamera className="w-4 h-4 text-slate-500" />
-                  <span>Attach Photo</span>
+                  <span>{photoPreview ? t('citizen.change_photo', 'Change Photo') : t('citizen.attach_photo', 'Attach Photo')}</span>
                 </button>
                 {photoPreview && (
                   <div className="flex items-center gap-2">
@@ -382,7 +382,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
                       onClick={() => setPhotoPreview(null)}
                       className="text-xs text-urgent-red hover:underline font-medium cursor-pointer"
                     >
-                      Remove
+                      {t('citizen.remove_photo', 'Remove')}
                     </button>
                   </div>
                 )}
@@ -399,12 +399,12 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
               {isExtracting ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Classifying Grievance...</span>
+                  <span>{t('citizen.processing', 'Analyzing Grievance with JanMitra AI...')}</span>
                 </>
               ) : (
                 <>
                   <IconSparkles className="w-4 h-4" />
-                  <span>Analyze & Review Details</span>
+                  <span>{t('citizen.analyze_button', 'Analyze & Register Grievance →')}</span>
                 </>
               )}
             </button>
@@ -417,13 +417,13 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
             <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 flex items-start gap-2.5">
               <IconSparkles className="w-4 h-4 text-need-blue flex-shrink-0 mt-0.5" />
               <div>
-                <strong>Classification Review:</strong> Attributes extracted from your report. You can adjust any field before confirming.
+                <strong>{t('citizen.review_title', 'Review AI Grievance Extraction')}:</strong> {t('citizen.review_sub', 'Verify detected ward, category, and severity before final docket logging.')}
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Sector / Issue Category:</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">{t('citizen.category', 'Civic Category')}:</label>
                 <select
                   value={extractedData.issue_type}
                   onChange={(e) => setExtractedData({ ...extractedData, issue_type: e.target.value })}
@@ -441,7 +441,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Ward / Locality:</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">{t('citizen.assigned_ward', 'Detected Ward')}:</label>
                 <select
                   value={extractedData.ward}
                   onChange={(e) => setExtractedData({ ...extractedData, ward: e.target.value })}
@@ -456,7 +456,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Urgency Level:</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">{t('citizen.urgency', 'Urgency Level')}:</label>
                 <select
                   value={extractedData.urgency}
                   onChange={(e) => setExtractedData({ ...extractedData, urgency: e.target.value })}
@@ -469,7 +469,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Primary Affected Group:</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">{t('citizen.affected_group', 'Impacted Group')}:</label>
                 <input
                   type="text"
                   value={extractedData.affected_group}
@@ -481,7 +481,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
 
             {extractedData.severity_rationale && (
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
-                <span className="font-semibold text-slate-800">Classification Rationale:</span> {extractedData.severity_rationale}
+                <span className="font-semibold text-slate-800">{t('citizen.severity_reason', 'Triage Rationale')}:</span> {extractedData.severity_rationale}
               </div>
             )}
 
@@ -498,7 +498,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
                 type="button"
                 className="flex-1 py-2.5 border border-slate-200 text-slate-700 font-medium rounded-lg text-xs hover:bg-slate-50 transition-colors cursor-pointer"
               >
-                Back to Edit
+                {t('citizen.back_button', '← Edit Input')}
               </button>
               <button
                 onClick={handleRegister}
@@ -507,7 +507,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
                 className="btn-primary flex-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold rounded-lg text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <IconCheckCircle className="w-4 h-4" />
-                <span>{isSubmitting ? "Submitting..." : "Confirm & Register Grievance"}</span>
+                <span>{isSubmitting ? "Submitting..." : t('citizen.confirm_button', 'Confirm & Log Grievance')}</span>
               </button>
             </div>
           </div>
@@ -520,23 +520,23 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
               <IconCheckCircle className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-lg md:text-xl font-bold text-slate-900">Grievance Registered Successfully</h2>
+              <h2 className="text-lg md:text-xl font-bold text-slate-900">{t('citizen.success_title', 'Grievance Successfully Registered!')}</h2>
               <p className="text-xs text-slate-500 mt-1">
-                Logged in {currentConstituency.toUpperCase()} Constituency Portal
+                {t('citizen.success_sub', 'Your issue has been logged into the constituency GIS database and mapped to local priority queue.')}
               </p>
             </div>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-left space-y-2.5 text-xs font-mono max-w-md mx-auto shadow-2xs">
               <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500">Tracking Reference:</span>
+                <span className="text-slate-500">{t('citizen.tracking_id', 'Grievance Docket ID')}:</span>
                 <span className="font-bold text-need-blue">#{complaintId}</span>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500">Ward & Locality:</span>
+                <span className="text-slate-500">{t('citizen.assigned_ward', 'Ward & Locality')}:</span>
                 <span className="font-bold text-slate-800">{extractedData.ward} ({extractedData.locality})</span>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500">Sector:</span>
+                <span className="text-slate-500">{t('citizen.category', 'Sector')}:</span>
                 <span className="font-bold text-slate-800 uppercase">{extractedData.issue_type}</span>
               </div>
               <div className="flex justify-between">
@@ -552,7 +552,7 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
               type="button"
               className="btn-primary px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg text-xs shadow-2xs transition-all cursor-pointer"
             >
-              Submit Another Grievance
+              {t('citizen.submit_another', 'Submit Another Grievance')}
             </button>
           </div>
         )}

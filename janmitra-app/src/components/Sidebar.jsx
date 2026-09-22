@@ -48,11 +48,6 @@ export default function Sidebar({ activeView, onViewChange, currentConstituency 
     { id: 'citizen', label: t('sidebar.kiosk', 'Citizen'), icon: IconCitizen }
   ];
 
-  const constituencyNames = {
-    varanasi: "Varanasi (UP-77)",
-    lucknow: "Lucknow (UP-35)",
-    amethi: "Amethi (UP-37)"
-  };
 
   return (
     <>
@@ -66,10 +61,10 @@ export default function Sidebar({ activeView, onViewChange, currentConstituency 
           </div>
           <div className="min-w-0">
             <h1 className="font-semibold text-slate-900 tracking-tight text-sm leading-tight">
-              JanMitra
+              {t('sidebar.brand_title', 'JanMitra')}
             </h1>
             <span className="text-xs text-slate-500 block mt-0.5 font-medium">
-              Civic Operations
+              {t('sidebar.brand_sub', 'Civic Operations')}
             </span>
           </div>
         </div>
@@ -109,12 +104,14 @@ export default function Sidebar({ activeView, onViewChange, currentConstituency 
           <div className="p-2.5 rounded-lg border border-slate-200/80 bg-white">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">
-                Constituency
+                {t('sidebar.constituency', 'Constituency')}
               </span>
               <span className="w-2 h-2 rounded-full bg-emerald-500" title="Active"></span>
             </div>
             <p className="text-xs font-medium text-slate-800 mt-1 truncate">
-              {constituencyNames[currentConstituency.toLowerCase()] || currentConstituency}
+              {currentConstituency.toLowerCase() === 'lucknow'
+                ? (t('sidebar.home') === 'डैशबोर्ड' ? 'लखनऊ (UP-35)' : 'Lucknow (UP-35)')
+                : (t('sidebar.home') === 'डैशबोर्ड' ? 'वाराणसी (UP-77)' : 'Varanasi (UP-77)')}
             </p>
           </div>
         </div>

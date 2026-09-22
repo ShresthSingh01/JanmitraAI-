@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { computeRankings } from '../scoring/priorityEngine';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
@@ -11,6 +12,7 @@ import {
 } from '../utils/icons';
 
 export default function IssuesPage({ clusters, selectedCluster, setSelectedCluster, onNavigateToPortfolio }) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [sectorFilter, setSectorFilter] = useState('all'); // 'all' | 'water' | 'road' | 'health' | 'education'
   const [urgencyTab, setUrgencyTab] = useState('all'); // 'all' | 'critical'
@@ -80,9 +82,9 @@ export default function IssuesPage({ clusters, selectedCluster, setSelectedClust
       {/* Top Header Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">Issues & Clusters</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">{t('issues.title', 'Issues & Clusters')}</h1>
           <p className="text-xs md:text-sm text-slate-500 mt-0.5">
-            Aggregated citizen complaints grouped into actionable development priorities.
+            {t('issues.subtitle', 'Aggregated citizen complaints grouped into actionable development priorities.')}
           </p>
         </div>
         
@@ -94,7 +96,7 @@ export default function IssuesPage({ clusters, selectedCluster, setSelectedClust
             className="btn-primary flex items-center gap-2 bg-need-blue hover:bg-need-blue-dark text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors shadow-2xs cursor-pointer"
           >
             <IconPortfolio className="w-4 h-4" />
-            <span>Open Planner</span>
+            <span>{t('dashboard.open_planner', 'Open Planner')}</span>
           </button>
         </div>
       </div>
@@ -109,7 +111,7 @@ export default function IssuesPage({ clusters, selectedCluster, setSelectedClust
               aria-label="Search issues by ward, sector, or keyword"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by sector, ward name, or grievance..."
+              placeholder={t('issues.search_placeholder', 'Search by sector, ward name, or grievance...')}
               className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-need-blue focus:border-need-blue bg-slate-50/70"
             />
             <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
@@ -137,7 +139,7 @@ export default function IssuesPage({ clusters, selectedCluster, setSelectedClust
                 urgencyTab === 'critical' ? 'bg-white text-urgent-red font-semibold shadow-2xs' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              Critical Only
+              {t('issues.critical_only', 'Critical Only')}
             </button>
           </div>
         </div>

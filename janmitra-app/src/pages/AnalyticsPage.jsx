@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { computeBaselineFromClusters } from '../scoring/csteEngine';
 import { DISTRICT_BASELINES } from '../scoring/benchmarks';
 import { IconPortfolio, IconChevronRight } from '../utils/icons';
 
 export default function AnalyticsPage({ clusters = [], currentConstituency = 'varanasi', onNavigateToPortfolio }) {
-  // Page rendered in current language mode
+  const { t } = useTranslation();
 
   const districtBaseline = DISTRICT_BASELINES[currentConstituency.toLowerCase()] || DISTRICT_BASELINES.varanasi;
   const currentCSTE = useMemo(() => computeBaselineFromClusters(clusters, currentConstituency), [clusters, currentConstituency]);
@@ -68,14 +69,14 @@ export default function AnalyticsPage({ clusters = [], currentConstituency = 'va
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-need-blue" aria-hidden="true"></span>
             <span className="text-xs font-mono uppercase tracking-wider text-slate-500 font-semibold">
-              Constituency Analytics & Infrastructure Health
+              {t('analytics.title', 'Constituency Analytics & Infrastructure Health')}
             </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold font-display text-slate-900 mt-1">
             {currentConstituency.toUpperCase()} Constituency Overview
           </h1>
           <p className="text-sm text-slate-600 mt-0.5">
-            Cross-sector grievance distribution, ward density, and verified CSTE infrastructure benchmarks.
+            {t('analytics.subtitle', 'Cross-sector grievance distribution, ward density, and verified CSTE infrastructure benchmarks.')}
           </p>
         </div>
 

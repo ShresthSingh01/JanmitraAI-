@@ -8,10 +8,10 @@ export default function TopBar({
   onConstituencyChange,
   onNavigateToCitizen
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   
-  // Format real current date cleanly
-  const todayFormatted = new Date().toLocaleDateString('en-IN', {
+  // Format real current date cleanly in appropriate locale
+  const todayFormatted = new Date().toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-IN', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -19,8 +19,8 @@ export default function TopBar({
   });
 
   const constituencies = [
-    { id: 'varanasi', label: 'Varanasi (UP-77)' },
-    { id: 'lucknow', label: 'Lucknow (UP-35)' }
+    { id: 'varanasi', label: i18n.language === 'hi' ? 'वाराणसी (UP-77)' : 'Varanasi (UP-77)' },
+    { id: 'lucknow', label: i18n.language === 'hi' ? 'लखनऊ (UP-35)' : 'Lucknow (UP-35)' }
   ];
 
   const toggleLanguage = () => {
@@ -33,7 +33,7 @@ export default function TopBar({
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2.5">
           <label htmlFor="constituency-select" className="text-xs font-medium text-slate-500">
-            Constituency:
+            {t('topbar.constituency', 'Constituency')}:
           </label>
           <select
             id="constituency-select"
@@ -62,7 +62,7 @@ export default function TopBar({
             className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-need-blue bg-blue-50/80 hover:bg-blue-100/80 border border-blue-200/70 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
           >
             <IconCitizen className="w-3.5 h-3.5" />
-            <span>Citizen Portal</span>
+            <span>{t('topbar.citizen_portal', 'Citizen Portal')}</span>
           </button>
         )}
 
@@ -71,7 +71,7 @@ export default function TopBar({
           onClick={toggleLanguage}
           type="button"
           className="flex items-center gap-1 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg transition-colors border border-slate-200 cursor-pointer"
-          aria-label="Toggle language between Hindi and English"
+          aria-label={t('topbar.toggle_lang', 'Toggle language between Hindi and English')}
         >
           <span>{i18n.language === 'en' ? 'अ हिन्दी' : 'A English'}</span>
         </button>
@@ -81,8 +81,8 @@ export default function TopBar({
           <button 
             type="button"
             className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-lg transition-colors border border-slate-200/60"
-            aria-label={`Critical priority alerts: ${notificationCount}`}
-            title={`${notificationCount} critical issues currently active`}
+            aria-label={`${t('topbar.critical_alerts', 'Critical priority alerts')}: ${notificationCount}`}
+            title={`${notificationCount} ${t('topbar.critical_alerts', 'critical priority alerts')}`}
           >
             <IconBell className="w-4 h-4" />
             {notificationCount > 0 && (

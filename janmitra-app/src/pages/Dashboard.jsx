@@ -127,10 +127,10 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
-            {t('dashboard.title', 'Constituency Overview & Priorities')}
+            {t('dashboard.title', 'Constituency Operational Kiosk')}
           </h1>
           <p className="text-xs md:text-sm text-slate-500 mt-0.5">
-            {t('dashboard.subtitle', 'Consolidated citizen grievances, priority rankings, and recommended fund allocation.')}
+            {t('dashboard.subtitle', 'Monitor and manage citizen complaints, allocate budgets, and model impacts.')}
           </p>
         </div>
         <div>
@@ -141,7 +141,7 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
             className="btn-primary flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium py-2.5 px-4 rounded-lg shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
           >
             <IconFileText className="w-4 h-4" />
-            <span>{isGeneratingReport ? 'Compiling PDF...' : 'Download Briefing PDF'}</span>
+            <span>{isGeneratingReport ? t('dashboard.generating_pdf', 'Compiling Brief...') : t('dashboard.download_brief', 'Download PDF Docket')}</span>
           </button>
         </div>
       </div>
@@ -149,28 +149,28 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
       {/* KPI Row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 animate-stagger">
         <KpiCard
-          title="Total Grievances"
+          title={t('dashboard.kpi_complaints', 'Logged Grievances')}
           value={totalComplaints.toLocaleString()}
           subtext="Verified reports"
           icon={IconFileText}
           variant="default"
         />
         <KpiCard
-          title="Active Issues"
+          title={t('dashboard.kpi_critical', 'Critical Priorities')}
           value={rankedClusters.length}
           subtext="Grouped clusters"
           icon={IconIssues}
           variant={criticalIssuesCount > 0 ? "warning" : "default"}
         />
         <KpiCard
-          title="Development Fund"
+          title={t('dashboard.kpi_budget', 'Development Fund')}
           value={`₹${formatCostLakhs(defaultBudget)}`}
           subtext="Allocated budget"
           icon={IconCurrencyRupee}
           variant="highlighted"
         />
         <KpiCard
-          title="Selected Projects"
+          title={t('dashboard.allocated_budget_title', 'Selected Projects')}
           value={fundedClusters.length}
           subtext="Click to review planner"
           icon={IconPortfolio}
@@ -178,7 +178,7 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
           onClick={onNavigateToPortfolio}
         />
         <KpiCard
-          title="Population Impact"
+          title={t('dashboard.kpi_citizens', 'Population Impact')}
           value={totalPeopleImpacted.toLocaleString()}
           subtext="Direct beneficiaries"
           icon={IconUsers}
@@ -197,7 +197,7 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
           <div>
             <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2.5">
               <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                High-Priority Issues
+                {t('dashboard.priority_queue', 'High-Priority Issues')}
               </h2>
               <Badge variant="navy" size="sm">
                 Ranked by Need & Impact
@@ -255,7 +255,7 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
               type="button"
               className="w-full py-2 px-3 text-xs font-medium text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <span>View All Issues</span>
+              <span>{t('dashboard.view_all_clusters', 'View All Issues')}</span>
               <IconChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -265,11 +265,11 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
         <section className="lg:col-span-4 bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col min-h-[440px]">
           <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2.5">
             <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Constituency Ward Map
+              {t('wardmap.title', 'Constituency Ward Map')}
             </h2>
             <div className="flex gap-2 items-center">
               <span className="w-2 h-2 rounded-full bg-need-blue" />
-              <span className="text-xs text-slate-500">Active Clusters</span>
+              <span className="text-xs text-slate-500">{t('map.gis_intelligence', 'Active Clusters')}</span>
             </div>
           </div>
 
@@ -288,10 +288,10 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
           <div>
             <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2.5">
               <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                Recommended Allocation
+                {t('dashboard.allocated_budget_title', 'Recommended Allocation')}
               </h2>
               <Badge variant="success" size="sm" dot>
-                Budget Optimized
+                {t('dashboard.allocated_budget_sub', 'Budget Optimized')}
               </Badge>
             </div>
 
@@ -353,7 +353,7 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
               type="button"
               className="btn-primary w-full bg-need-blue hover:bg-need-blue-dark text-white text-xs font-semibold py-2.5 px-4 rounded-lg transition-colors text-center block shadow-2xs cursor-pointer"
             >
-              Open Portfolio Planner
+              {t('dashboard.open_planner', 'Open Portfolio Planner')}
             </button>
           </div>
         </section>

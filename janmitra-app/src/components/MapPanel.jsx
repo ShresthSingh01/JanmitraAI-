@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { VARANASI_WARD_CENTROIDS, LUCKNOW_WARD_CENTROIDS } from '../utils/fallbackParser';
@@ -58,6 +59,7 @@ export default function MapPanel({
   onSelectWard,
   currentConstituency = 'varanasi'
 }) {
+  const { t } = useTranslation();
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersLayerRef = useRef(null);
@@ -71,7 +73,7 @@ export default function MapPanel({
   const constituencyConfig = CONSTITUENCY_CENTERS[currentConstituency.toLowerCase()] || CONSTITUENCY_CENTERS.varanasi;
   const wardMap = currentConstituency.toLowerCase() === 'lucknow' ? LUCKNOW_WARD_CENTROIDS : VARANASI_WARD_CENTROIDS;
 
-  // 1. Load GeoJSON ward boundaries
+  // 1. Load GeoJSON ward boundaries with real multi-vertex polygons
   useEffect(() => {
     const geoFile = currentConstituency.toLowerCase() === 'lucknow'
       ? '/constituencies/lucknow.geojson'
@@ -84,7 +86,7 @@ export default function MapPanel({
       })
       .then(data => setGeoData(data))
       .catch(err => {
-        console.warn("Falling back to wards.geojson:", err.message);
+        console.warn("Falling back to root wards.geojson:", err.message);
         fetch('/wards.geojson')
           .then(r => r.json())
           .then(d => setGeoData(d))
@@ -92,7 +94,7 @@ export default function MapPanel({
       });
   }, [currentConstituency]);
 
-  // 2. Initialize Leaflet Map Instance
+  // 2. Initialize Leaflet Map Instance (100% Free, Zero API Key)
   useEffect(() => {
     if (!mapContainerRef.current || viewMode !== 'map') return;
 
@@ -106,14 +108,27 @@ export default function MapPanel({
         attributionControl: false
       });
 
-      // CartoDB Dark Matter tiles (100% free, no API key, dark command-center aesthetic)
-      const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // Primary: CartoDB Dark Matter tiles (100% free, no API key required)
+      const primaryTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 19
       });
 
-      tileLayer.addTo(map);
+      // Automatic fallback to standard OpenStreetMap tiles if Carto experiences any connectivity issue
+      primaryTileLayer.on('tileerror', function() {
+        if (!map._hasOsmFallback) {
+          map._hasOsmFallback = true;
+          console.info("Switched to secondary OpenStreetMap tile fallback.");
+          const osmFallback = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19
+          });
+          osmFallback.addTo(map);
+        }
+      });
+
+      primaryTileLayer.addTo(map);
 
       // Add zoom control at bottom-right
       L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -142,17 +157,7 @@ export default function MapPanel({
     };
   }, [viewMode, constituencyConfig]);
 
-  // 3. Pan to constituency center on constituency change
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    mapInstanceRef.current.flyTo(
-      [constituencyConfig.lat, constituencyConfig.lng],
-      constituencyConfig.zoom,
-      { duration: 1.0 }
-    );
-  }, [currentConstituency, constituencyConfig]);
-
-  // 4. Render GeoJSON Ward Polygons
+  // 3. Render GeoJSON Ward Polygons & Auto-fit bounds
   useEffect(() => {
     if (!mapInstanceRef.current || !geoJsonLayerRef.current || !geoData) return;
 
@@ -164,7 +169,7 @@ export default function MapPanel({
         const isWardSelected = selectedCluster && selectedCluster.ward === wardId;
         return {
           fillColor: isWardSelected ? '#38bdf8' : '#0284c7',
-          fillOpacity: isWardSelected ? 0.35 : 0.12,
+          fillOpacity: isWardSelected ? 0.38 : 0.14,
           color: isWardSelected ? '#38bdf8' : '#0ea5e9',
           weight: isWardSelected ? 2.5 : 1.2,
           dashArray: isWardSelected ? null : '3, 4',
@@ -189,7 +194,7 @@ export default function MapPanel({
           mouseover: (e) => {
             const l = e.target;
             l.setStyle({
-              fillOpacity: 0.3,
+              fillOpacity: 0.32,
               weight: 2,
               color: '#38bdf8'
             });
@@ -209,9 +214,29 @@ export default function MapPanel({
     });
 
     geoJsonLayerRef.current.addLayer(geoLayer);
-  }, [geoData, clusters, selectedCluster, onSelectWard, onSelectCluster, mapLoaded]);
 
-  // 5. Render Cluster Markers
+    // Dynamically fit map bounds to the exact boundaries of the constituency
+    try {
+      const bounds = geoLayer.getBounds();
+      if (bounds.isValid() && mapInstanceRef.current) {
+        mapInstanceRef.current.fitBounds(bounds, {
+          padding: [24, 24],
+          maxZoom: 14,
+          animate: true,
+          duration: 0.8
+        });
+      }
+    } catch (e) {
+      console.warn("fitBounds fallback to flyTo:", e);
+      mapInstanceRef.current.flyTo(
+        [constituencyConfig.lat, constituencyConfig.lng],
+        constituencyConfig.zoom,
+        { duration: 0.8 }
+      );
+    }
+  }, [geoData, clusters, selectedCluster, constituencyConfig, onSelectWard, onSelectCluster, mapLoaded]);
+
+  // 4. Render Cluster Markers
   useEffect(() => {
     if (!mapInstanceRef.current || !markersLayerRef.current) return;
 
@@ -226,8 +251,8 @@ export default function MapPanel({
       if (!lat || !lng || lat > 28 || lat < 24) {
         const wardInfo = wardMap[cluster.ward] || wardMap[Object.keys(wardMap)[0]];
         if (wardInfo) {
-          const jitterLat = (Math.abs(cluster.id?.charCodeAt(3) || 0) % 5) * 0.002 - 0.004;
-          const jitterLng = (Math.abs(cluster.id?.charCodeAt(5) || 0) % 5) * 0.002 - 0.004;
+          const jitterLat = (Math.abs(cluster.id?.charCodeAt(3) || 0) % 5) * 0.001 - 0.002;
+          const jitterLng = (Math.abs(cluster.id?.charCodeAt(5) || 0) % 5) * 0.001 - 0.002;
           lat = wardInfo.lat + jitterLat;
           lng = wardInfo.lng + jitterLng;
         } else {
@@ -253,23 +278,23 @@ export default function MapPanel({
           <div class="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-700">
             <span class="text-[10px] uppercase tracking-wider font-bold text-slate-400 font-mono">${cluster.ward || 'Constituency'}</span>
             <span class="text-[10px] font-bold px-1.5 py-0.5 rounded font-mono ${isUrgent ? 'bg-red-500/20 text-red-400' : 'bg-sky-500/20 text-sky-400'}">
-              SCORE: ${score}
+              ${t('map.score', 'SCORE')}: ${score}
             </span>
           </div>
           <h4 class="text-xs font-bold text-white capitalize mb-1 flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full ${isUrgent ? 'bg-red-500' : 'bg-sky-400'}"></span>
-            ${cluster.issue_type} Deficit
+            ${cluster.issue_type} ${t('map.deficit', 'Deficit')}
           </h4>
           <p class="text-[11px] text-slate-300 mb-2 leading-relaxed line-clamp-2">
             ${cluster.description || 'Civic infrastructure upgrade project'}
           </p>
           <div class="grid grid-cols-2 gap-1.5 mb-2.5 text-[10px] bg-slate-900/80 p-1.5 rounded border border-slate-800">
             <div>
-              <span class="text-slate-400 block font-mono">Affected</span>
+              <span class="text-slate-400 block font-mono">${t('map.affected', 'Affected')}</span>
               <strong class="text-slate-200">${pop}</strong>
             </div>
             <div>
-              <span class="text-slate-400 block font-mono">Est. Cost</span>
+              <span class="text-slate-400 block font-mono">${t('map.est_cost', 'Est. Cost')}</span>
               <strong class="text-emerald-400">₹${costLakhs}L</strong>
             </div>
           </div>
@@ -277,7 +302,7 @@ export default function MapPanel({
             id="btn-inspect-${cluster.id}" 
             class="w-full py-1.5 px-2 bg-sky-600 hover:bg-sky-500 text-white rounded text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
           >
-            Inspect Project Docket &rarr;
+            ${t('map.inspect_project', 'Inspect Project Docket →')}
           </button>
         </div>
       `;
@@ -320,11 +345,22 @@ export default function MapPanel({
       }
       mapInstanceRef.current.flyTo([sLat, sLng], 14, { duration: 0.8 });
     }
-  }, [clusters, selectedCluster, hoveredCluster, constituencyConfig, wardMap, onSelectCluster, onSelectWard, mapLoaded]);
+  }, [clusters, selectedCluster, hoveredCluster, constituencyConfig, wardMap, onSelectCluster, onSelectWard, mapLoaded, t]);
 
   // Reset map view to constituency bounds
   const handleResetView = () => {
     if (mapInstanceRef.current) {
+      if (geoJsonLayerRef.current && geoJsonLayerRef.current.getLayers().length > 0) {
+        try {
+          const firstLayer = geoJsonLayerRef.current.getLayers()[0];
+          if (firstLayer && firstLayer.getBounds && firstLayer.getBounds().isValid()) {
+            mapInstanceRef.current.fitBounds(firstLayer.getBounds(), { padding: [24, 24], maxZoom: 14 });
+            return;
+          }
+        } catch (e) {
+          console.warn("Reset fitBounds fallback:", e);
+        }
+      }
       mapInstanceRef.current.flyTo(
         [constituencyConfig.lat, constituencyConfig.lng],
         constituencyConfig.zoom,
@@ -340,10 +376,10 @@ export default function MapPanel({
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
           <span className="text-xs font-mono uppercase tracking-wider text-slate-200 font-bold">
-            {constituencyConfig.name} GIS INTELLIGENCE
+            {constituencyConfig.name} {t('map.gis_intelligence', 'GIS INTELLIGENCE')}
           </span>
           <span className="text-[10px] font-mono text-slate-400 hidden sm:inline-block bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50">
-            OpenStreetMap / Leaflet
+            {t('map.osm_leaflet', 'OpenStreetMap / Leaflet (Zero API Key)')}
           </span>
         </div>
 
@@ -351,10 +387,10 @@ export default function MapPanel({
           {viewMode === 'map' && (
             <button
               onClick={handleResetView}
-              title="Reset Map View"
+              title={t('map.reset_view', 'Reset View')}
               className="text-[11px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
             >
-              Reset View
+              {t('map.reset_view', 'Reset View')}
             </button>
           )}
 
@@ -366,7 +402,7 @@ export default function MapPanel({
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
             }`}
           >
-            {viewMode === 'map' ? 'Ward Grid' : 'Map Canvas'}
+            {viewMode === 'map' ? t('map.ward_grid', 'Ward Grid') : t('map.map_canvas', 'Map Canvas')}
           </button>
         </div>
       </div>
@@ -434,19 +470,19 @@ export default function MapPanel({
         {viewMode === 'map' && (
           <div className="absolute bottom-3 left-3 z-[400] bg-slate-900/90 border border-slate-800 rounded-lg p-2.5 backdrop-blur-xs shadow-lg text-[10px] font-mono text-slate-300 flex flex-col gap-1.5 pointer-events-auto">
             <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-1">
-              GIS Cluster Severity
+              {t('map.severity_title', 'GIS Cluster Severity')}
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-              <span>Critical Need (&gt;0.6)</span>
+              <span>{t('map.critical_need', 'Critical Need (>0.6)')}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-              <span>Moderate Priority</span>
+              <span>{t('map.moderate_priority', 'Moderate Priority')}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
-              <span>Standard Baseline</span>
+              <span>{t('map.standard_baseline', 'Standard Baseline')}</span>
             </div>
           </div>
         )}

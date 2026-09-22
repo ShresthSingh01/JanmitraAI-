@@ -1,101 +1,307 @@
 {
   "type": "FeatureCollection",
   "name": "Varanasi Nagar Nigam Wards",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
   "features": [
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 1", "ward_number": 1, "ward_name": "Assi / Nagwa", "population": 42500 },
+      "properties": {
+        "ward": "Ward 1",
+        "ward_number": 1,
+        "ward_name": "Assi / Nagwa",
+        "zone": "Dashashwamedh Zone",
+        "population": 42500,
+        "area_sq_km": 2.4,
+        "description": "Historic southern riverfront ward spanning Assi Ghat, Ravidas Ghat, Nagwa, and Lanka junction."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[82.9960, 25.2810], [83.0080, 25.2830], [83.0090, 25.2940], [82.9980, 25.2930], [82.9960, 25.2810]]]
+        "coordinates": [[
+          [82.9945, 25.2790],
+          [83.0032, 25.2815],
+          [83.0078, 25.2858],
+          [83.0094, 25.2922],
+          [83.0055, 25.2950],
+          [82.9982, 25.2942],
+          [82.9948, 25.2875],
+          [82.9930, 25.2825],
+          [82.9945, 25.2790]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 2", "ward_number": 2, "ward_name": "Lanka / BHU", "population": 58200 },
+      "properties": {
+        "ward": "Ward 2",
+        "ward_number": 2,
+        "ward_name": "Lanka / BHU",
+        "zone": "Bhelupur Zone",
+        "population": 58200,
+        "area_sq_km": 4.1,
+        "description": "Southern educational corridor encompassing Banaras Hindu University (BHU), Sir Sunderlal Hospital, and Lanka market."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[82.9860, 25.2720], [82.9990, 25.2740], [82.9980, 25.2860], [82.9850, 25.2840], [82.9860, 25.2720]]]
+        "coordinates": [[
+          [82.9810, 25.2645],
+          [82.9950, 25.2670],
+          [83.0020, 25.2735],
+          [82.9995, 25.2840],
+          [82.9935, 25.2865],
+          [82.9830, 25.2820],
+          [82.9785, 25.2740],
+          [82.9810, 25.2645]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 3", "ward_number": 3, "ward_name": "Bhelupur", "population": 46800 },
+      "properties": {
+        "ward": "Ward 3",
+        "ward_number": 3,
+        "ward_name": "Bhelupur",
+        "zone": "Bhelupur Zone",
+        "population": 46800,
+        "area_sq_km": 2.8,
+        "description": "High-density residential and civic zone covering Bhelupur Water Works, Khojwan, and Durgakund."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[82.9870, 25.2950], [83.0010, 25.2950], [83.0020, 25.3080], [82.9880, 25.3070], [82.9870, 25.2950]]]
+        "coordinates": [[
+          [82.9840, 25.2920],
+          [82.9960, 25.2930],
+          [83.0025, 25.2958],
+          [83.0040, 25.3045],
+          [82.9990, 25.3085],
+          [82.9875, 25.3070],
+          [82.9825, 25.3010],
+          [82.9840, 25.2920]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 4", "ward_number": 4, "ward_name": "Sigra", "population": 51400 },
+      "properties": {
+        "ward": "Ward 4",
+        "ward_number": 4,
+        "ward_name": "Sigra",
+        "zone": "Chetganj Zone",
+        "population": 51400,
+        "area_sq_km": 3.2,
+        "description": "Commercial and sports nerve center including Dr. Sampurnanand Stadium, Vidyapeeth, and Sigra crossroads."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[82.9750, 25.3080], [82.9920, 25.3080], [82.9910, 25.3210], [82.9740, 25.3200], [82.9750, 25.3080]]]
+        "coordinates": [[
+          [82.9715, 25.3060],
+          [82.9855, 25.3068],
+          [82.9940, 25.3090],
+          [82.9928, 25.3195],
+          [82.9845, 25.3230],
+          [82.9730, 25.3210],
+          [82.9695, 25.3135],
+          [82.9715, 25.3060]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 5", "ward_number": 5, "ward_name": "Dashashwamedh", "population": 39600 },
+      "properties": {
+        "ward": "Ward 5",
+        "ward_number": 5,
+        "ward_name": "Dashashwamedh",
+        "zone": "Dashashwamedh Zone",
+        "population": 39600,
+        "area_sq_km": 1.9,
+        "description": "Core religious hub hosting Dashashwamedh Ghat, Kashi Vishwanath Corridor access, and Godowlia market."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[83.0020, 25.3030], [83.0160, 25.3040], [83.0150, 25.3140], [83.0010, 25.3130], [83.0020, 25.3030]]]
+        "coordinates": [[
+          [83.0005, 25.3020],
+          [83.0070, 25.3032],
+          [83.0135, 25.3060],
+          [83.0162, 25.3115],
+          [83.0125, 25.3150],
+          [83.0035, 25.3138],
+          [82.9990, 25.3080],
+          [83.0005, 25.3020]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 6", "ward_number": 6, "ward_name": "Chowk", "population": 44100 },
+      "properties": {
+        "ward": "Ward 6",
+        "ward_number": 6,
+        "ward_name": "Chowk",
+        "zone": "Kotwali Zone",
+        "population": 44100,
+        "area_sq_km": 1.7,
+        "description": "Ancient mercantile heartland featuring Chowk bazaar, Thatheri Bazaar, Manikarnika ghat approach, and winding heritage lanes."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[83.0050, 25.3100], [83.0180, 25.3110], [83.0170, 25.3210], [83.0040, 25.3200], [83.0050, 25.3100]]]
+        "coordinates": [[
+          [83.0030, 25.3110],
+          [83.0115, 25.3122],
+          [83.0175, 25.3148],
+          [83.0190, 25.3200],
+          [83.0138, 25.3235],
+          [83.0060, 25.3218],
+          [83.0020, 25.3160],
+          [83.0030, 25.3110]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 7", "ward_number": 7, "ward_name": "Chetganj", "population": 38900 },
+      "properties": {
+        "ward": "Ward 7",
+        "ward_number": 7,
+        "ward_name": "Chetganj",
+        "zone": "Chetganj Zone",
+        "population": 38900,
+        "area_sq_km": 2.2,
+        "description": "Central transit and commercial sector including Chetganj, Lahurabir, and Piplani Katra."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[82.9860, 25.3120], [83.0010, 25.3130], [83.0000, 25.3250], [82.9850, 25.3240], [82.9860, 25.3120]]]
+        "coordinates": [[
+          [82.9830, 25.3115],
+          [82.9930, 25.3128],
+          [83.0025, 25.3145],
+          [83.0018, 25.3242],
+          [82.9935, 25.3265],
+          [82.9835, 25.3235],
+          [82.9810, 25.3165],
+          [82.9830, 25.3115]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 8", "ward_number": 8, "ward_name": "Kotwali", "population": 35200 },
+      "properties": {
+        "ward": "Ward 8",
+        "ward_number": 8,
+        "ward_name": "Kotwali",
+        "zone": "Kotwali Zone",
+        "population": 35200,
+        "area_sq_km": 1.8,
+        "description": "Administrative sector covering Kotwali police headquarters, Maidagin, and Town Hall."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[83.0040, 25.3170], [83.0190, 25.3180], [83.0180, 25.3290], [83.0030, 25.3280], [83.0040, 25.3170]]]
+        "coordinates": [[
+          [83.0020, 25.3180],
+          [83.0110, 25.3192],
+          [83.0185, 25.3215],
+          [83.0205, 25.3275],
+          [83.0145, 25.3310],
+          [83.0050, 25.3292],
+          [83.0005, 25.3230],
+          [83.0020, 25.3180]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 9", "ward_number": 9, "ward_name": "Pandeypur", "population": 55800 },
+      "properties": {
+        "ward": "Ward 9",
+        "ward_number": 9,
+        "ward_name": "Pandeypur",
+        "zone": "Varunapar Zone",
+        "population": 55800,
+        "area_sq_km": 3.6,
+        "description": "Northeastern urban expansion zone spanning Pandeypur crossing, Premchand Nagar, and mental hospital corridor."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[82.9890, 25.3340], [83.0070, 25.3350], [83.0060, 25.3490], [82.9880, 25.3480], [82.9890, 25.3340]]]
+        "coordinates": [[
+          [82.9860, 25.3325],
+          [82.9980, 25.3340],
+          [83.0095, 25.3375],
+          [83.0110, 25.3470],
+          [83.0040, 25.3525],
+          [82.9915, 25.3510],
+          [82.9840, 25.3435],
+          [82.9860, 25.3325]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 10", "ward_number": 10, "ward_name": "Sarnath", "population": 48300 },
+      "properties": {
+        "ward": "Ward 10",
+        "ward_number": 10,
+        "ward_name": "Sarnath",
+        "zone": "Varunapar Zone",
+        "population": 48300,
+        "area_sq_km": 4.5,
+        "description": "World heritage cultural destination featuring Dhamek Stupa, Archaeological Museum, and Mulagandha Kuti Vihar."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[83.0110, 25.3620], [83.0330, 25.3630], [83.0320, 25.3810], [83.0100, 25.3800], [83.0110, 25.3620]]]
+        "coordinates": [[
+          [83.0080, 25.3590],
+          [83.0210, 25.3610],
+          [83.0345, 25.3650],
+          [83.0360, 25.3785],
+          [83.0265, 25.3840],
+          [83.0135, 25.3815],
+          [83.0065, 25.3710],
+          [83.0080, 25.3590]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 11", "ward_number": 11, "ward_name": "Shivpur", "population": 62400 },
+      "properties": {
+        "ward": "Ward 11",
+        "ward_number": 11,
+        "ward_name": "Shivpur",
+        "zone": "Varunapar Zone",
+        "population": 62400,
+        "area_sq_km": 4.8,
+        "description": "Northwestern transit spine connecting NH-31, Central Jail road, and Shivpur residential expansion."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[82.9520, 25.3480], [82.9760, 25.3490], [82.9750, 25.3680], [82.9510, 25.3670], [82.9520, 25.3480]]]
+        "coordinates": [[
+          [82.9480, 25.3440],
+          [82.9630, 25.3465],
+          [82.9775, 25.3495],
+          [82.9785, 25.3650],
+          [82.9690, 25.3720],
+          [82.9540, 25.3695],
+          [82.9460, 25.3585],
+          [82.9480, 25.3440]
+        ]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 12", "ward_number": 12, "ward_name": "Cantonment", "population": 45100 },
+      "properties": {
+        "ward": "Ward 12",
+        "ward_number": 12,
+        "ward_name": "Cantonment",
+        "zone": "Chetganj Zone",
+        "population": 45100,
+        "area_sq_km": 3.9,
+        "description": "Institutional green belt featuring Varanasi Cantt railway junction, defense estate, and Nadesar hotel corridor."
+      },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[82.9680, 25.3240], [82.9870, 25.3250], [82.9860, 25.3410], [82.9670, 25.3400], [82.9680, 25.3240]]]
+        "coordinates": [[
+          [82.9640, 25.3210],
+          [82.9770, 25.3235],
+          [82.9885, 25.3260],
+          [82.9890, 25.3395],
+          [82.9810, 25.3440],
+          [82.9690, 25.3420],
+          [82.9620, 25.3325],
+          [82.9640, 25.3210]
+        ]]
       }
     }
   ]

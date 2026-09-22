@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { greedyBudgetSelect, computeRankings } from '../scoring/priorityEngine';
 import { simulateCSTE } from '../scoring/csteEngine';
 import { IconCheckCircle } from '../utils/icons';
@@ -6,9 +7,10 @@ import { IconCheckCircle } from '../utils/icons';
 export default function BudgetSimulator({ 
   clusters, 
   budget, 
-  onBudgetChange,
+  onBudgetChange, 
   onNavigateBack 
 }) {
+  const { t } = useTranslation();
   const [csteMode, setCsteMode] = useState('current'); // 'current' | 'projected'
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -127,7 +129,7 @@ export default function BudgetSimulator({
       {/* Header Area */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">Budget Simulator</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">{t('sidebar.simulator', 'Budget Simulator')}</h1>
           <p className="text-xs md:text-sm text-slate-500 mt-0.5">
             Model the impact on water, clinics, and connectivity under different funding limits.
           </p>
@@ -137,7 +139,7 @@ export default function BudgetSimulator({
           type="button"
           className="border border-slate-200 hover:border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium px-3.5 py-2 rounded-lg transition-all shadow-2xs cursor-pointer"
         >
-          ← Return to Planner
+          ← {t('dashboard.open_planner', 'Return to Planner')}
         </button>
       </div>
 

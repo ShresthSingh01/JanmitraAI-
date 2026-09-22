@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import ScoreTriadChip from '../components/ScoreTriadChip';
 import ExplanationBlock from '../components/ExplanationBlock';
 import Badge from '../components/Badge';
@@ -19,6 +20,7 @@ export default function PortfolioPlanner({
   selectedCluster, 
   onNavigateToSimulator 
 }) {
+  const { t } = useTranslation();
   const [saveStatus, setSaveStatus] = useState(null); // { type: 'success' | 'error', message: string }
 
   // Pre-calculate rankings
@@ -163,7 +165,7 @@ export default function PortfolioPlanner({
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">Portfolio Planner</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">{t('sidebar.planner', 'Portfolio Planner')}</h1>
           <p className="text-xs md:text-sm text-slate-500 mt-0.5">
             Select and balance constituency development projects within available fund limits.
           </p>

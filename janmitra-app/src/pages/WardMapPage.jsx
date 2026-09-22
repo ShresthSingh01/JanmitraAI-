@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import MapPanel from '../components/MapPanel';
 import Badge from '../components/Badge';
 import { SectorIcon } from '../utils/icons';
 import { VARANASI_WARD_CENTROIDS, LUCKNOW_WARD_CENTROIDS } from '../utils/fallbackParser';
 
 export default function WardMapPage({ clusters = [], setSelectedCluster, onNavigateToIssues, currentConstituency = 'varanasi' }) {
+  const { t } = useTranslation();
   const [selectedWard, setSelectedWard] = useState('Ward 7');
 
   const wardMap = currentConstituency.toLowerCase() === 'lucknow' ? LUCKNOW_WARD_CENTROIDS : VARANASI_WARD_CENTROIDS;
@@ -74,21 +76,21 @@ export default function WardMapPage({ clusters = [], setSelectedCluster, onNavig
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-need-blue"></span>
             <span className="text-xs font-mono uppercase tracking-wider text-slate-500 font-semibold">
-              {currentConstituency.toUpperCase()} WARD LEVEL OVERVIEW
+              {currentConstituency.toUpperCase()} {t('wardmap.overview_badge', 'WARD LEVEL OVERVIEW')}
             </span>
           </div>
           <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight mt-1">
-            Constituency Ward Map
+            {t('wardmap.title', 'Constituency Ward Map')}
           </h1>
           <p className="text-xs md:text-sm text-slate-500 mt-0.5">
-            Geographic ward boundaries, cluster locations, and localized service demands.
+            {t('wardmap.subtitle', 'Geographic ward boundaries, cluster locations, and localized service demands.')}
           </p>
         </div>
 
         {/* Quick Ward Selector */}
         <div className="flex items-center gap-2.5">
           <label htmlFor="ward-inspect-select" className="text-xs text-slate-500 font-medium">
-            Select Ward:
+            {t('wardmap.select_ward', 'Select Ward')}:
           </label>
           <select
             id="ward-inspect-select"
@@ -110,10 +112,10 @@ export default function WardMapPage({ clusters = [], setSelectedCluster, onNavig
         <div className="lg:col-span-2 bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
             <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              {currentConstituency.toUpperCase()} Municipal Boundaries & Clusters
+              {currentConstituency.toUpperCase()} {t('wardmap.boundaries_title', 'Municipal Boundaries & Clusters')}
             </h2>
             <span className="text-xs font-mono text-slate-500">
-              Click a ward or cluster pin to inspect
+              {t('wardmap.click_hint', 'Click a ward polygon or cluster pin to inspect')}
             </span>
           </div>
           
@@ -132,7 +134,7 @@ export default function WardMapPage({ clusters = [], setSelectedCluster, onNavig
           <div>
             <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-4">
               <div>
-                <span className="text-xs text-slate-400 uppercase font-mono">Inspected Ward</span>
+                <span className="text-xs text-slate-400 uppercase font-mono">{t('wardmap.inspected_ward', 'Inspected Ward')}</span>
                 <h3 className="text-lg font-bold text-slate-900">{activeWard.name}</h3>
                 <p className="text-xs text-need-blue font-medium">{activeWard.locality}</p>
               </div>
@@ -141,29 +143,31 @@ export default function WardMapPage({ clusters = [], setSelectedCluster, onNavig
                 size="sm"
                 dot
               >
-                Need: {activeWard.avgNeedScore}
+                {t('wardmap.need_score', 'Need')}: {activeWard.avgNeedScore}
               </Badge>
             </div>
 
             <div className="space-y-3 mb-4">
               <div className="flex justify-between text-xs py-1 border-b border-slate-50">
-                <span className="text-slate-500">Active Grievances:</span>
+                <span className="text-slate-500">{t('wardmap.active_grievances', 'Active Grievances')}:</span>
                 <span className="font-bold text-slate-800 font-mono tabular-nums">{activeWard.complaints}</span>
               </div>
               <div className="flex justify-between text-xs py-1 border-b border-slate-50">
-                <span className="text-slate-500">Identified Projects:</span>
+                <span className="text-slate-500">{t('wardmap.identified_projects', 'Identified Projects')}:</span>
                 <span className="font-bold text-slate-800 font-mono tabular-nums">{activeWard.issues.length}</span>
               </div>
               <div className="flex justify-between text-xs py-1 border-b border-slate-50">
-                <span className="text-slate-500">Beneficiary Base:</span>
-                <span className="font-bold text-slate-800 font-mono tabular-nums">{activeWard.population > 0 ? activeWard.population.toLocaleString() : 'Ward-wide'}</span>
+                <span className="text-slate-500">{t('wardmap.beneficiary_base', 'Beneficiary Base')}:</span>
+                <span className="font-bold text-slate-800 font-mono tabular-nums">{activeWard.population > 0 ? activeWard.population.toLocaleString() : t('wardmap.ward_wide', 'Ward-wide')}</span>
               </div>
             </div>
 
             <div>
-              <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">Priority Issues in {activeWard.name}:</h4>
+              <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">
+                {t('wardmap.priority_issues', 'Priority Issues in')} {activeWard.name}:
+              </h4>
               {activeWard.issues.length === 0 ? (
-                <p className="text-xs text-slate-400 italic py-3">No active grievance clusters recorded in this ward.</p>
+                <p className="text-xs text-slate-400 italic py-3">{t('wardmap.no_issues', 'No active grievance clusters recorded in this ward.')}</p>
               ) : (
                 <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
                   {activeWard.issues.map(iss => (
@@ -189,7 +193,7 @@ export default function WardMapPage({ clusters = [], setSelectedCluster, onNavig
           </div>
 
           <div className="pt-4 border-t border-slate-100 text-xs text-slate-400">
-            Source: Constituency Wards GIS & Field Registry
+            {t('wardmap.source', 'Source: Constituency Wards GIS & Field Registry')}
           </div>
         </div>
       </div>
