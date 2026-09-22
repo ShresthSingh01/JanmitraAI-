@@ -1,68 +1,74 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
-import { CLUSTERS } from '../../scripts/seedData.js';
+import { getSmartFallback, VARANASI_WARD_CENTROIDS, LUCKNOW_WARD_CENTROIDS } from '../utils/fallbackParser';
+import Badge from '../components/Badge';
+import { 
+  IconMicrophone, 
+  IconCamera, 
+  IconCheckCircle, 
+  IconSparkles, 
+  IconChevronRight 
+} from '../utils/icons';
 
 export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const [step, setStep] = useState(1); // 1: Input, 2: Review, 3: Success
   const [mode, setMode] = useState('type'); // 'type' | 'voice'
   const [rawText, setRawText] = useState('');
+  const [photoPreview, setPhotoPreview] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  const fileInputRef = useRef(null);
+
+  const wardMap = currentConstituency.toLowerCase() === 'lucknow' ? LUCKNOW_WARD_CENTROIDS : VARANASI_WARD_CENTROIDS;
+
   // Extracted data state for review
   const [extractedData, setExtractedData] = useState({
     issue_type: 'water',
     ward: 'Ward 7',
-    urgency: 'moderate',
-    affected_group: 'residents'
+    locality: 'Chetganj',
+    urgency: 'critical',
+    affected_group: 'residents',
+    severity_rationale: ''
   });
   
   // Voice Speech Recognition state
   const [isListening, setIsListening] = useState(false);
+  const [speechError, setSpeechError] = useState(null);
   const [complaintId, setComplaintId] = useState('');
 
-  // Local keywords extractor fallback if backend fails
-  const getSmartFallback = (text) => {
-    const lower = (text || '').toLowerCase();
-    
-    let issue_type = "water";
-    if (lower.includes("road") || lower.includes("pothole") || lower.includes("sarak") || lower.includes("सड़क") || lower.includes("गड्ढे")) {
-      issue_type = "road";
-    } else if (lower.includes("hospital") || lower.includes("doctor") || lower.includes("clinic") || lower.includes("health") || lower.includes("अस्पताल") || lower.includes("इलाज")) {
-      issue_type = "health";
-    } else if (lower.includes("school") || lower.includes("teacher") || lower.includes("bench") || lower.includes("स्कूल") || lower.includes("शिक्षा")) {
-      issue_type = "education";
+  // Handle Image Upload
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
-
-    let ward = "Ward 7";
-    if (lower.includes("ward 3") || lower.includes("ward3") || lower.includes("वार्ड 3") || lower.includes("w3")) {
-      ward = "Ward 3";
-    } else if (lower.includes("ward 9") || lower.includes("ward9") || lower.includes("वार्ड 9") || lower.includes("w9")) {
-      ward = "Ward 9";
-    }
-
-    const urgency = lower.includes("urgent") || lower.includes("emergency") || lower.includes("तुरंत") || lower.includes("खराब") ? "critical" : "moderate";
-    const affected_group = issue_type === 'health' ? 'patients' : issue_type === 'education' ? 'students' : issue_type === 'road' ? 'commuters' : 'residents';
-
-    return { issue_type, ward, urgency, affected_group };
   };
 
-  // Step 1 -> Step 2: Trigger AI Extraction
+  // Step 1 -> Step 2: Trigger Extraction
   const handleExtract = async () => {
-    const textToExtract = mode === 'voice' && !rawText ? "Urgent drinking water shortage and leak" : rawText;
-    if (!textToExtract.trim()) return;
+    if (!rawText.trim()) {
+      setSpeechError("Please type or speak your grievance details before continuing.");
+      setTimeout(() => setSpeechError(null), 4000);
+      return;
+    }
 
     setIsExtracting(true);
+    setSpeechError(null);
     
     try {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
       const response = await fetch(`${API_BASE_URL}/api/extract-complaint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: textToExtract, language: i18n.language, constituency: currentConstituency })
+        body: JSON.stringify({ text: rawText, language: i18n.language, constituency: currentConstituency })
       });
 
       if (response.ok) {
@@ -70,16 +76,28 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
         setExtractedData({
           issue_type: data.issue_type || 'water',
           ward: data.location?.ward || 'Ward 7',
+          locality: data.location?.locality || data.location?.name || 'Varanasi',
           urgency: data.urgency || 'moderate',
           affected_group: data.affected_group || 'residents',
+          severity_rationale: data.severity_rationale || '',
           embedding: data.embedding
         });
       } else {
-        setExtractedData(getSmartFallback(textToExtract));
+        const fb = getSmartFallback(rawText, currentConstituency);
+        setExtractedData({
+          ...fb,
+          ward: fb.location.ward,
+          locality: fb.location.locality
+        });
       }
     } catch (e) {
-      console.warn("Backend extraction failed, using telemetry parser:", e);
-      setExtractedData(getSmartFallback(textToExtract));
+      console.warn("Backend extraction note:", e.message);
+      const fb = getSmartFallback(rawText, currentConstituency);
+      setExtractedData({
+        ...fb,
+        ward: fb.location.ward,
+        locality: fb.location.locality
+      });
     } finally {
       setIsExtracting(false);
       setStep(2);
@@ -92,17 +110,28 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
     const generatedId = `C${Date.now().toString().slice(-4)}`;
     setComplaintId(generatedId);
 
+    const wardCoord = wardMap[extractedData.ward] || { lat: 25.3176, lng: 82.9739 };
+    const prefix = currentConstituency.toLowerCase() === 'lucknow' ? 'LKO' : 'VAR';
+    const clusterId = `CL_${prefix}_${extractedData.ward.replace(/\s+/g, '')}_${extractedData.issue_type.toUpperCase()}`;
+
     const complaintDoc = {
       id: generatedId,
       raw_text: rawText || "Voice logged complaint",
-      language: 'en',
+      language: i18n.language || 'hi',
+      has_photo: !!photoPreview,
       extracted: {
         issue_type: extractedData.issue_type,
-        location: { lat: 28.62, lng: 77.21, ward: extractedData.ward },
+        location: {
+          lat: wardCoord.lat,
+          lng: wardCoord.lng,
+          ward: extractedData.ward,
+          locality: extractedData.locality || wardCoord.name
+        },
         urgency: extractedData.urgency,
-        affected_group: extractedData.affected_group
+        affected_group: extractedData.affected_group,
+        severity_rationale: extractedData.severity_rationale
       },
-      cluster_id: `CL_${currentConstituency === 'lucknow' ? 'LKO' : currentConstituency === 'amethi' ? 'AME' : 'VAR'}_${extractedData.ward.replace(/\s+/g, '')}_${extractedData.issue_type.toUpperCase()}`,
+      cluster_id: clusterId,
       constituency_id: currentConstituency,
       embedding: extractedData.embedding || null,
       timestamp: new Date().toISOString()
@@ -122,23 +151,27 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
 
     // Update Local Storage
     try {
+      const savedComplaints = JSON.parse(localStorage.getItem('jm_complaints') || '[]');
+      savedComplaints.unshift(complaintDoc);
+      localStorage.setItem('jm_complaints', JSON.stringify(savedComplaints.slice(0, 100)));
+
       const savedClustersStr = localStorage.getItem('janmitra_clusters');
-      let currentClusters = savedClustersStr ? JSON.parse(savedClustersStr) : JSON.parse(JSON.stringify(CLUSTERS));
-
-      const targetIndex = currentClusters.findIndex(
-        (c) => c.ward === extractedData.ward && c.issue_type === extractedData.issue_type
-      );
-
-      if (targetIndex !== -1) {
-        const prevCount = currentClusters[targetIndex].complaint_count || 10;
-        currentClusters[targetIndex] = {
-          ...currentClusters[targetIndex],
-          complaint_count: prevCount + 1,
-          recurrence_score: Math.min(1.0, (currentClusters[targetIndex].recurrence_score || 0.5) + 0.05)
-        };
+      if (savedClustersStr) {
+        const currentClusters = JSON.parse(savedClustersStr);
+        const targetIndex = currentClusters.findIndex(
+          (c) => c.ward === extractedData.ward && c.issue_type === extractedData.issue_type
+        );
+        if (targetIndex !== -1) {
+          const prevCount = currentClusters[targetIndex].complaint_count || 10;
+          currentClusters[targetIndex] = {
+            ...currentClusters[targetIndex],
+            complaint_count: prevCount + 1,
+            recurrence_score: Math.min(1.0, (currentClusters[targetIndex].recurrence_score || 0.5) + 0.04)
+          };
+          localStorage.setItem('janmitra_clusters', JSON.stringify(currentClusters));
+          window.dispatchEvent(new Event('janmitra_clusters_updated'));
+        }
       }
-      localStorage.setItem('janmitra_clusters', JSON.stringify(currentClusters));
-      window.dispatchEvent(new Event('janmitra_clusters_updated'));
     } catch (lsErr) {
       console.warn("Local storage sync skipped:", lsErr);
     }
@@ -151,21 +184,32 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
   const startSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Browser speech-to-text not supported in this browser. Please type details.");
+      setSpeechError("Browser speech recognition is not supported in this browser. Please type your grievance.");
+      setTimeout(() => setSpeechError(null), 5000);
       return;
     }
 
     const rec = new SpeechRecognition();
     rec.lang = i18n.language === 'hi' ? 'hi-IN' : 'en-US';
     rec.continuous = false;
+    rec.interimResults = false;
 
     rec.onstart = () => {
       setIsListening(true);
+      setSpeechError(null);
     };
 
-    rec.onresult = (e) => {
-      const transcript = e.results[0][0].transcript;
+    rec.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
       setRawText(transcript);
+      setIsListening(false);
+    };
+
+    rec.onerror = (event) => {
+      console.warn("Speech Recognition error:", event.error);
+      setIsListening(false);
+      setSpeechError("Could not capture audio clearly. Please try again or type directly.");
+      setTimeout(() => setSpeechError(null), 4000);
     };
 
     rec.onend = () => {
@@ -177,231 +221,341 @@ export default function CitizenWidget({ currentConstituency = 'varanasi' }) {
 
   const handleReset = () => {
     setRawText('');
+    setPhotoPreview(null);
+    setSpeechError(null);
     setStep(1);
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl mx-auto pb-24 md:pb-6">
-      {/* Header Info */}
-      <div className="border-b border-border-gray pb-4">
-        <h1 className="text-[22px] font-bold text-slate-800 tracking-tight">Citizen Complaint Registry</h1>
-        <p className="text-[13px] text-neutral-gray mt-0.5">Collect, verify, and group citizen grievances into constituency twin telemetry.</p>
+    <div className="p-4 md:p-6 space-y-6 max-w-2xl mx-auto pb-24 md:pb-8">
+      {/* Header with Civic Accent */}
+      <div className="border-b border-slate-200 pb-4">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-2 h-2 rounded-full bg-need-blue" />
+          <span className="text-xs font-mono uppercase tracking-wider text-slate-500 font-semibold">
+            {currentConstituency.toUpperCase()} CITIZEN INTAKE
+          </span>
+        </div>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
+          Citizen Grievance Portal
+        </h1>
+        <p className="text-xs md:text-sm text-slate-500 mt-1 leading-relaxed">
+          Submit civic complaints in Hindi or English with voice or photo evidence. Logged directly into constituency planning.
+        </p>
       </div>
 
       {/* Stepper Indicator */}
-      <div className="flex items-center justify-between bg-white px-6 py-3 border border-border-gray rounded-xl shadow-sm">
+      <div className="flex items-center justify-between bg-white px-4 py-3 border border-slate-200/90 rounded-xl shadow-2xs">
         <div className="flex items-center gap-2">
-          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold font-mono ${
-            step >= 1 ? 'bg-need-blue text-white' : 'bg-slate-100 text-neutral-gray'
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono ${
+            step >= 1 ? 'bg-need-blue text-white' : 'bg-slate-100 text-slate-500'
           }`}>1</span>
-          <span className="text-[12px] font-bold text-slate-700">Complaint Input</span>
+          <span className="text-xs font-medium text-slate-700">Intake</span>
         </div>
-        <span className="text-neutral-gray text-xs">➔</span>
+        <IconChevronRight className="text-slate-300 w-4 h-4" />
         <div className="flex items-center gap-2">
-          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold font-mono ${
-            step >= 2 ? 'bg-need-blue text-white' : 'bg-slate-100 text-neutral-gray'
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono ${
+            step >= 2 ? 'bg-need-blue text-white' : 'bg-slate-100 text-slate-500'
           }`}>2</span>
-          <span className="text-[12px] font-bold text-slate-700">AI Review</span>
+          <span className="text-xs font-medium text-slate-700">Review & Triage</span>
         </div>
-        <span className="text-neutral-gray text-xs">➔</span>
+        <IconChevronRight className="text-slate-300 w-4 h-4" />
         <div className="flex items-center gap-2">
-          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold font-mono ${
-            step >= 3 ? 'bg-success-green text-white' : 'bg-slate-100 text-neutral-gray'
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono ${
+            step >= 3 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
           }`}>3</span>
-          <span className="text-[12px] font-bold text-slate-700">Receipt</span>
+          <span className="text-xs font-medium text-slate-700">Confirmation</span>
         </div>
       </div>
 
       {/* Step Contents */}
-      <div className="bg-white border border-border-gray rounded-xl p-6 shadow-sm">
+      <div className="bg-white border border-slate-200/90 rounded-xl p-5 md:p-6 shadow-2xs">
         
         {/* Step 1: Input Mode */}
         {step === 1 && (
           <div className="space-y-5">
-            <div className="text-center">
-              <h2 className="text-[16px] font-bold text-slate-800">How can we help?</h2>
-              <p className="text-[12px] text-neutral-gray">Submit grievance details in either text or spoken formats.</p>
-            </div>
+            {speechError && (
+              <div role="status" className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg">
+                {speechError}
+              </div>
+            )}
 
-            {/* Input Toggle */}
-            <div className="flex justify-center gap-4 border-b border-slate-150 pb-2">
+            {/* Input Switcher (Type / Voice) */}
+            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200/80" role="tablist">
               <button
                 onClick={() => setMode('type')}
-                className={`pb-1 text-[13px] font-bold transition-all ${
-                  mode === 'type' ? 'text-need-blue border-b-2 border-need-blue' : 'text-neutral-gray'
+                type="button"
+                role="tab"
+                aria-selected={mode === 'type'}
+                className={`flex-1 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  mode === 'type' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Type Text
+                <span>Type Details</span>
               </button>
               <button
                 onClick={() => setMode('voice')}
-                className={`pb-1 text-[13px] font-bold transition-all ${
-                  mode === 'voice' ? 'text-need-blue border-b-2 border-need-blue' : 'text-neutral-gray'
+                type="button"
+                role="tab"
+                aria-selected={mode === 'voice'}
+                className={`flex-1 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  mode === 'voice' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Speak Voice
+                <IconMicrophone className="w-3.5 h-3.5 text-need-blue" />
+                <span>Voice (Hindi / English)</span>
               </button>
             </div>
 
             {mode === 'type' ? (
-              <div className="relative">
+              <div>
+                <label htmlFor="grievance-textarea" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Describe the Issue / समस्या का विवरण लिखें:
+                </label>
                 <textarea
+                  id="grievance-textarea"
+                  rows="4"
                   value={rawText}
-                  onChange={(e) => setRawText(e.target.value.slice(0, 500))}
-                  placeholder="Describe the constituency issue here (e.g. Broken water pipeline in sector 3...)"
-                  className="w-full h-32 p-3 border border-border-gray rounded-lg text-[13px] bg-slate-50 focus:outline-none focus:ring-1 focus:ring-need-blue focus:border-need-blue"
+                  onChange={(e) => setRawText(e.target.value)}
+                  placeholder="उदा: चेतगंज में मुख्य सड़क पर गहरा गड्ढा है जिससे दुर्घटना हो रही है, या अस्सी पर नाला चोक है..."
+                  className="w-full text-xs md:text-sm border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-1 focus:ring-need-blue bg-slate-50/50"
                 />
-                <span className="absolute bottom-3 right-3 text-[10px] font-mono text-neutral-gray">
-                  {rawText.length}/500
-                </span>
               </div>
             ) : (
-              <div className="flex flex-col items-center py-6 space-y-4">
+              <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/70">
                 <button
+                  type="button"
                   onClick={startSpeechRecognition}
-                  className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${
-                    isListening ? 'bg-urgent-red text-white animate-pulse' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-md cursor-pointer ${
+                    isListening ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200' : 'bg-need-blue text-white hover:bg-need-blue-dark'
                   }`}
+                  aria-label="Toggle voice input"
                 >
-                  <span className="text-2xl">{isListening ? '🛑' : '🎤'}</span>
+                  <IconMicrophone className="w-8 h-8" />
                 </button>
-                <div className="text-center">
-                  <span className="text-[12px] font-bold text-slate-800">
-                    {isListening ? 'Listening... Speak details clearly' : 'Tap to start recording'}
-                  </span>
-                  {rawText && (
-                    <p className="text-[11px] text-neutral-gray mt-2 italic bg-slate-50 p-2.5 rounded border border-slate-100 max-w-sm">
-                      "{rawText}"
-                    </p>
-                  )}
-                </div>
+                <span className="text-xs font-bold text-slate-800 mt-3">
+                  {isListening ? "Listening... बोलिए..." : "Tap to Speak (बोलने के लिए दबाएं)"}
+                </span>
+                <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
+                  Speak in Hindi or English. Speech is transcribed and categorized automatically.
+                </p>
+                {rawText && (
+                  <div className="mt-4 p-3 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 max-w-md w-full shadow-2xs">
+                    <span className="font-semibold text-slate-900 block mb-0.5">Recognized Speech:</span>
+                    <p className="italic text-slate-700">"{rawText}"</p>
+                  </div>
+                )}
               </div>
             )}
 
+            {/* Photo Attachment Section */}
+            <div className="border-t border-slate-100 pt-4">
+              <label className="block text-xs font-semibold text-slate-700 mb-2">
+                Photo Evidence (Optional / फोटो संलग्न करें):
+              </label>
+              
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <IconCamera className="w-4 h-4 text-slate-500" />
+                  <span>Attach Photo</span>
+                </button>
+                {photoPreview && (
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={photoPreview}
+                      alt="Complaint Preview"
+                      className="w-12 h-12 object-cover rounded-lg border border-slate-200 shadow-2xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPhotoPreview(null)}
+                      className="text-xs text-urgent-red hover:underline font-medium cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Submit Step 1 Button */}
             <button
               onClick={handleExtract}
-              disabled={isExtracting || (!rawText.trim() && mode === 'type')}
-              className="w-full bg-need-blue hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-[13px] transition-colors disabled:opacity-50"
+              disabled={isExtracting || !rawText.trim()}
+              type="button"
+              className="btn-primary w-full py-2.5 bg-need-blue hover:bg-need-blue-dark disabled:opacity-50 text-white font-semibold rounded-lg text-xs shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              {isExtracting ? 'Analyzing Complaint via Gemini AI...' : 'Analyze Details →'}
+              {isExtracting ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Classifying Grievance...</span>
+                </>
+              ) : (
+                <>
+                  <IconSparkles className="w-4 h-4" />
+                  <span>Analyze & Review Details</span>
+                </>
+              )}
             </button>
           </div>
         )}
 
-        {/* Step 2: AI Review State */}
+        {/* Step 2: Review & Confirmation */}
         {step === 2 && (
           <div className="space-y-5">
-            <div>
-              <h2 className="text-[16px] font-bold text-slate-800">Verify Telemetry Extraction</h2>
-              <p className="text-[12px] text-neutral-gray">Gemini structured details automatically. Make corrections if inaccurate.</p>
+            <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 flex items-start gap-2.5">
+              <IconSparkles className="w-4 h-4 text-need-blue flex-shrink-0 mt-0.5" />
+              <div>
+                <strong>Classification Review:</strong> Attributes extracted from your report. You can adjust any field before confirming.
+              </div>
             </div>
 
-            <div className="space-y-4 border-t border-b border-slate-100 py-4">
-              {/* Issue Type */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="text-[12px] font-bold text-slate-700">Issue Category</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Sector / Issue Category:</label>
                 <select
                   value={extractedData.issue_type}
                   onChange={(e) => setExtractedData({ ...extractedData, issue_type: e.target.value })}
-                  className="bg-slate-50 border border-border-gray rounded-md p-1.5 text-[12px]"
+                  className="w-full text-xs font-medium border border-slate-200 rounded-lg p-2.5 focus:ring-1 focus:ring-need-blue capitalize bg-slate-50/60"
                 >
-                  <option value="water">Water Shortage</option>
-                  <option value="road">Road Connectivity</option>
-                  <option value="health">Healthcare Access</option>
-                  <option value="education">Education Infrastructure</option>
+                  <option value="water">Water Supply</option>
+                  <option value="road">Road & Potholes</option>
+                  <option value="health">Primary Health Center</option>
+                  <option value="education">School Education</option>
+                  <option value="drainage">Sewer & Drainage</option>
+                  <option value="sanitation">Sanitation</option>
+                  <option value="electricity">Power & Transformer</option>
+                  <option value="streetlight">Streetlighting</option>
                 </select>
               </div>
 
-              {/* Ward */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="text-[12px] font-bold text-slate-700">Constituency Ward</span>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Ward / Locality:</label>
                 <select
                   value={extractedData.ward}
                   onChange={(e) => setExtractedData({ ...extractedData, ward: e.target.value })}
-                  className="bg-slate-50 border border-border-gray rounded-md p-1.5 text-[12px]"
+                  className="w-full text-xs font-medium border border-slate-200 rounded-lg p-2.5 focus:ring-1 focus:ring-need-blue bg-slate-50/60"
                 >
-                  <option value="Ward 3">Ward 3</option>
-                  <option value="Ward 7">Ward 7</option>
-                  <option value="Ward 9">Ward 9</option>
+                  {Object.entries(wardMap).map(([wId, info]) => (
+                    <option key={wId} value={wId}>
+                      {wId} ({info.name || wId})
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* Urgency */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="text-[12px] font-bold text-slate-700">Priority Urgency</span>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Urgency Level:</label>
                 <select
                   value={extractedData.urgency}
                   onChange={(e) => setExtractedData({ ...extractedData, urgency: e.target.value })}
-                  className="bg-slate-50 border border-border-gray rounded-md p-1.5 text-[12px]"
+                  className="w-full text-xs font-medium border border-slate-200 rounded-lg p-2.5 focus:ring-1 focus:ring-need-blue bg-slate-50/60 font-mono"
                 >
-                  <option value="moderate">Moderate State</option>
-                  <option value="critical">Critical Urgency</option>
-                  <option value="low">Low Priority</option>
+                  <option value="critical">Critical (Immediate Hazard)</option>
+                  <option value="moderate">Moderate (Interrupted Service)</option>
+                  <option value="low">Standard / Routine</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Primary Affected Group:</label>
+                <input
+                  type="text"
+                  value={extractedData.affected_group}
+                  onChange={(e) => setExtractedData({ ...extractedData, affected_group: e.target.value })}
+                  className="w-full text-xs font-medium border border-slate-200 rounded-lg p-2.5 focus:ring-1 focus:ring-need-blue bg-slate-50/60"
+                />
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            {extractedData.severity_rationale && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+                <span className="font-semibold text-slate-800">Classification Rationale:</span> {extractedData.severity_rationale}
+              </div>
+            )}
+
+            {photoPreview && (
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <img src={photoPreview} alt="Attached" className="w-14 h-14 object-cover rounded-md border" />
+                <span className="text-xs text-slate-600 font-medium">Photo evidence verified and attached to grievance document.</span>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setStep(1)}
-                className="flex-1 border border-border-gray py-2.5 rounded-lg text-[13px] font-bold hover:bg-slate-50 transition-colors"
+                type="button"
+                className="flex-1 py-2.5 border border-slate-200 text-slate-700 font-medium rounded-lg text-xs hover:bg-slate-50 transition-colors cursor-pointer"
               >
-                ← Back
+                Back to Edit
               </button>
               <button
                 onClick={handleRegister}
                 disabled={isSubmitting}
-                className="flex-1 bg-success-green hover:bg-emerald-600 text-white font-bold py-2.5 rounded-lg text-[13px] transition-colors"
+                type="button"
+                className="btn-primary flex-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold rounded-lg text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                {isSubmitting ? 'Registering...' : 'Confirm & Register ✓'}
+                <IconCheckCircle className="w-4 h-4" />
+                <span>{isSubmitting ? "Submitting..." : "Confirm & Register Grievance"}</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 3: Success Receipt */}
+        {/* Step 3: Grievance Receipt */}
         {step === 3 && (
-          <div className="text-center space-y-5 py-4">
-            <div className="w-16 h-16 rounded-full bg-success-green/10 text-success-green text-3xl flex items-center justify-center mx-auto">
-              ✓
+          <div className="space-y-6 text-center py-4">
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-2xs">
+              <IconCheckCircle className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-[16px] font-bold text-slate-800">Complaint Registered Successfully</h2>
-              <p className="text-[12px] text-neutral-gray mt-1">
-                Receipt generated under system log. Integrated into prioritizations.
+              <h2 className="text-lg md:text-xl font-bold text-slate-900">Grievance Registered Successfully</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Logged in {currentConstituency.toUpperCase()} Constituency Portal
               </p>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 max-w-sm mx-auto font-mono text-[11px] text-left space-y-2 text-slate-700">
-              <div className="flex justify-between">
-                <span>Receipt ID:</span>
-                <span className="font-bold">{complaintId}</span>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-left space-y-2.5 text-xs font-mono max-w-md mx-auto shadow-2xs">
+              <div className="flex justify-between border-b border-slate-200 pb-2">
+                <span className="text-slate-500">Tracking Reference:</span>
+                <span className="font-bold text-need-blue">#{complaintId}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200 pb-2">
+                <span className="text-slate-500">Ward & Locality:</span>
+                <span className="font-bold text-slate-800">{extractedData.ward} ({extractedData.locality})</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200 pb-2">
+                <span className="text-slate-500">Sector:</span>
+                <span className="font-bold text-slate-800 uppercase">{extractedData.issue_type}</span>
               </div>
               <div className="flex justify-between">
-                <span>Category:</span>
-                <span className="font-bold uppercase">{extractedData.issue_type}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Location:</span>
-                <span className="font-bold">{extractedData.ward}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Urgency:</span>
-                <span className="font-bold uppercase text-urgent-red">{extractedData.urgency}</span>
+                <span className="text-slate-500">Status:</span>
+                <Badge variant="success" size="sm" dot>
+                  Registered & Grouped
+                </Badge>
               </div>
             </div>
 
-            <div className="pt-4 flex justify-center gap-3">
-              <button
-                onClick={handleReset}
-                className="bg-need-blue hover:bg-blue-700 text-white text-[12px] font-bold px-5 py-2 rounded-lg transition-colors shadow-sm"
-              >
-                Log New Complaint
-              </button>
-            </div>
+            <button
+              onClick={handleReset}
+              type="button"
+              className="btn-primary px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg text-xs shadow-2xs transition-all cursor-pointer"
+            >
+              Submit Another Grievance
+            </button>
           </div>
         )}
-
       </div>
     </div>
   );

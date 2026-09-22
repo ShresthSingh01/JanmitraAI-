@@ -1,46 +1,101 @@
 {
   "type": "FeatureCollection",
+  "name": "Varanasi Nagar Nigam Wards",
   "features": [
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 3", "population": 45000 },
+      "properties": { "ward": "Ward 1", "ward_number": 1, "ward_name": "Assi / Nagwa", "population": 42500 },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [77.2100, 28.6100],
-          [77.2150, 28.6100],
-          [77.2150, 28.6150],
-          [77.2100, 28.6150],
-          [77.2100, 28.6100]
-        ]]
+        "coordinates": [[[82.9960, 25.2810], [83.0080, 25.2830], [83.0090, 25.2940], [82.9980, 25.2930], [82.9960, 25.2810]]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 7", "population": 38000 },
+      "properties": { "ward": "Ward 2", "ward_number": 2, "ward_name": "Lanka / BHU", "population": 58200 },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [77.2150, 28.6150],
-          [77.2200, 28.6150],
-          [77.2200, 28.6200],
-          [77.2150, 28.6200],
-          [77.2150, 28.6150]
-        ]]
+        "coordinates": [[[82.9860, 25.2720], [82.9990, 25.2740], [82.9980, 25.2860], [82.9850, 25.2840], [82.9860, 25.2720]]]
       }
     },
     {
       "type": "Feature",
-      "properties": { "ward": "Ward 9", "population": 52000 },
+      "properties": { "ward": "Ward 3", "ward_number": 3, "ward_name": "Bhelupur", "population": 46800 },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [77.2000, 28.6000],
-          [77.2050, 28.6000],
-          [77.2050, 28.6050],
-          [77.2000, 28.6050],
-          [77.2000, 28.6000]
-        ]]
+        "coordinates": [[[82.9870, 25.2950], [83.0010, 25.2950], [83.0020, 25.3080], [82.9880, 25.3070], [82.9870, 25.2950]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 4", "ward_number": 4, "ward_name": "Sigra", "population": 51400 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[82.9750, 25.3080], [82.9920, 25.3080], [82.9910, 25.3210], [82.9740, 25.3200], [82.9750, 25.3080]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 5", "ward_number": 5, "ward_name": "Dashashwamedh", "population": 39600 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[83.0020, 25.3030], [83.0160, 25.3040], [83.0150, 25.3140], [83.0010, 25.3130], [83.0020, 25.3030]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 6", "ward_number": 6, "ward_name": "Chowk", "population": 44100 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[83.0050, 25.3100], [83.0180, 25.3110], [83.0170, 25.3210], [83.0040, 25.3200], [83.0050, 25.3100]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 7", "ward_number": 7, "ward_name": "Chetganj", "population": 38900 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[82.9860, 25.3120], [83.0010, 25.3130], [83.0000, 25.3250], [82.9850, 25.3240], [82.9860, 25.3120]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 8", "ward_number": 8, "ward_name": "Kotwali", "population": 35200 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[83.0040, 25.3170], [83.0190, 25.3180], [83.0180, 25.3290], [83.0030, 25.3280], [83.0040, 25.3170]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 9", "ward_number": 9, "ward_name": "Pandeypur", "population": 55800 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[82.9890, 25.3340], [83.0070, 25.3350], [83.0060, 25.3490], [82.9880, 25.3480], [82.9890, 25.3340]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 10", "ward_number": 10, "ward_name": "Sarnath", "population": 48300 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[83.0110, 25.3620], [83.0330, 25.3630], [83.0320, 25.3810], [83.0100, 25.3800], [83.0110, 25.3620]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 11", "ward_number": 11, "ward_name": "Shivpur", "population": 62400 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[82.9520, 25.3480], [82.9760, 25.3490], [82.9750, 25.3680], [82.9510, 25.3670], [82.9520, 25.3480]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 12", "ward_number": 12, "ward_name": "Cantonment", "population": 45100 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[82.9680, 25.3240], [82.9870, 25.3250], [82.9860, 25.3410], [82.9670, 25.3400], [82.9680, 25.3240]]]
       }
     }
   ]

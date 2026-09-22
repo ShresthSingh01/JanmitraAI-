@@ -59,7 +59,7 @@ async function runRecluster() {
   });
 
   console.log(`Found ${complaints.length} complaints.`);
-  const apiKey = process.env.VITE_GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
   let embeddingsGenerated = 0;
 

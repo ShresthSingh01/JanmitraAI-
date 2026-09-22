@@ -1,113 +1,196 @@
 import React, { useState, useMemo } from 'react';
 import MapPanel from '../components/MapPanel';
+import Badge from '../components/Badge';
+import { SectorIcon } from '../utils/icons';
+import { VARANASI_WARD_CENTROIDS, LUCKNOW_WARD_CENTROIDS } from '../utils/fallbackParser';
 
-export default function WardMapPage({ clusters, setSelectedCluster, onNavigateToIssues }) {
+export default function WardMapPage({ clusters = [], setSelectedCluster, onNavigateToIssues, currentConstituency = 'varanasi' }) {
   const [selectedWard, setSelectedWard] = useState('Ward 7');
 
-  // Compute ward details dynamically based on clusters
+  const wardMap = currentConstituency.toLowerCase() === 'lucknow' ? LUCKNOW_WARD_CENTROIDS : VARANASI_WARD_CENTROIDS;
+
+  // Compute ward details dynamically across all constituency wards
   const wardDetails = useMemo(() => {
-    const details = {
-      'Ward 7': { name: 'Ward 7', complaints: 0, population: 3350, issues: [], needScoreSum: 0 },
-      'Ward 3': { name: 'Ward 3', complaints: 0, population: 3550, issues: [], needScoreSum: 0 },
-      'Ward 9': { name: 'Ward 9', complaints: 0, population: 4800, issues: [], needScoreSum: 0 }
-    };
+    const details = {};
+
+    // Pre-populate with known wards from GIS database
+    Object.entries(wardMap).forEach(([wardId, info]) => {
+      details[wardId] = {
+        name: wardId,
+        locality: info.name || wardId,
+        complaints: 0,
+        population: 0,
+        issues: [],
+        needScoreSum: 0
+      };
+    });
 
     clusters.forEach(c => {
-      const wardKey = c.ward;
-      if (details[wardKey]) {
-        details[wardKey].complaints += c.complaint_count || 0;
-        details[wardKey].issues.push(c);
-        details[wardKey].needScoreSum += c.priority_score || 0.5;
+      const wardKey = c.ward || 'General';
+      if (!details[wardKey]) {
+        details[wardKey] = {
+          name: wardKey,
+          locality: wardKey,
+          complaints: 0,
+          population: 0,
+          issues: [],
+          needScoreSum: 0
+        };
       }
+      details[wardKey].complaints += c.complaint_count || 0;
+      details[wardKey].population = Math.max(details[wardKey].population, c.affected_population || 0);
+      details[wardKey].issues.push(c);
+      details[wardKey].needScoreSum += c.priority_score || 0.5;
     });
 
     // Calculate averages
     Object.keys(details).forEach(key => {
       const w = details[key];
-      w.avgNeedScore = w.issues.length ? parseFloat((w.needScoreSum / w.issues.length).toFixed(2)) : 0;
+      w.avgNeedScore = w.issues.length ? parseFloat((w.needScoreSum / w.issues.length).toFixed(3)) : 0;
     });
 
     return details;
-  }, [clusters]);
+  }, [clusters, wardMap]);
 
   const activeWard = wardDetails[selectedWard] || {
     name: selectedWard,
+    locality: selectedWard,
     complaints: 0,
-    population: 1000,
+    population: 0,
     avgNeedScore: 0,
     issues: []
   };
 
   const handleSelectCluster = (cluster) => {
-    setSelectedCluster(cluster);
-    onNavigateToIssues(cluster);
+    if (setSelectedCluster) setSelectedCluster(cluster);
+    if (onNavigateToIssues) onNavigateToIssues(cluster);
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto pb-24 md:pb-6">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto pb-24 md:pb-8">
       {/* Header Info */}
-      <div className="border-b border-border-gray pb-4">
-        <h1 className="text-[22px] font-bold text-slate-800 tracking-tight">Constituency Ward Map</h1>
-        <p className="text-[13px] text-neutral-gray mt-0.5">Explore geographic ward parameters, resource limits, and need allocations.</p>
+      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-need-blue"></span>
+            <span className="text-xs font-mono uppercase tracking-wider text-slate-500 font-semibold">
+              {currentConstituency.toUpperCase()} WARD LEVEL OVERVIEW
+            </span>
+          </div>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight mt-1">
+            Constituency Ward Map
+          </h1>
+          <p className="text-xs md:text-sm text-slate-500 mt-0.5">
+            Geographic ward boundaries, cluster locations, and localized service demands.
+          </p>
+        </div>
+
+        {/* Quick Ward Selector */}
+        <div className="flex items-center gap-2.5">
+          <label htmlFor="ward-inspect-select" className="text-xs text-slate-500 font-medium">
+            Select Ward:
+          </label>
+          <select
+            id="ward-inspect-select"
+            value={selectedWard}
+            onChange={(e) => setSelectedWard(e.target.value)}
+            className="text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-need-blue cursor-pointer shadow-2xs"
+          >
+            {Object.keys(wardDetails).map(wId => (
+              <option key={wId} value={wId}>
+                {wId} {wardDetails[wId].locality ? `(${wardDetails[wId].locality})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Main Map Container */}
-      <div className="grid grid-cols-1 gap-6">
-        <div className="bg-white border border-border-gray rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-            <h2 className="text-[14px] font-bold text-slate-800 uppercase tracking-wider">Interact Map Boundaries</h2>
-            <div className="flex gap-4 text-[11px] font-mono text-neutral-gray">
-              <span>Click a ward polygon on the map to select it</span>
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs space-y-3">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              {currentConstituency.toUpperCase()} Municipal Boundaries & Clusters
+            </h2>
+            <span className="text-xs font-mono text-slate-500">
+              Click a ward or cluster pin to inspect
+            </span>
           </div>
-
-          {/* Interactive Map */}
-          <div className="h-[400px] rounded-lg overflow-hidden border border-slate-100">
-            <MapPanel
-              clusters={clusters}
-              selectedCluster={null}
-              hoveredCluster={null}
-              onSelectCluster={handleSelectCluster}
+          
+          <div className="h-[480px] w-full rounded-lg overflow-hidden border border-slate-200">
+            <MapPanel 
+              clusters={clusters} 
               onSelectWard={setSelectedWard}
+              onSelectCluster={handleSelectCluster}
+              currentConstituency={currentConstituency}
             />
           </div>
         </div>
 
-        {/* Bottom Ward Summary Drawer */}
-        <div className="bg-white border border-border-gray rounded-xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all">
-          <div className="flex-1 space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🗺️</span>
+        {/* Ward Details Inspector Card */}
+        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-4">
               <div>
-                <h3 className="text-[16px] font-bold text-slate-805 leading-none">{activeWard.name} Detail summary</h3>
-                <span className="text-[11px] font-mono text-neutral-gray block mt-1">Constituency Zone parameters</span>
+                <span className="text-xs text-slate-400 uppercase font-mono">Inspected Ward</span>
+                <h3 className="text-lg font-bold text-slate-900">{activeWard.name}</h3>
+                <p className="text-xs text-need-blue font-medium">{activeWard.locality}</p>
+              </div>
+              <Badge 
+                variant={activeWard.avgNeedScore > 0.4 ? 'critical' : 'neutral'} 
+                size="sm"
+                dot
+              >
+                Need: {activeWard.avgNeedScore}
+              </Badge>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <div className="flex justify-between text-xs py-1 border-b border-slate-50">
+                <span className="text-slate-500">Active Grievances:</span>
+                <span className="font-bold text-slate-800 font-mono tabular-nums">{activeWard.complaints}</span>
+              </div>
+              <div className="flex justify-between text-xs py-1 border-b border-slate-50">
+                <span className="text-slate-500">Identified Projects:</span>
+                <span className="font-bold text-slate-800 font-mono tabular-nums">{activeWard.issues.length}</span>
+              </div>
+              <div className="flex justify-between text-xs py-1 border-b border-slate-50">
+                <span className="text-slate-500">Beneficiary Base:</span>
+                <span className="font-bold text-slate-800 font-mono tabular-nums">{activeWard.population > 0 ? activeWard.population.toLocaleString() : 'Ward-wide'}</span>
               </div>
             </div>
 
-            {/* Ward parameters */}
-            <div className="grid grid-cols-3 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100 text-center font-mono">
-              <div>
-                <span className="text-[9px] text-neutral-gray uppercase font-bold tracking-wider block mb-1">Issue count</span>
-                <span className="text-[13px] font-bold text-slate-800">{activeWard.issues.length} active</span>
-              </div>
-              <div>
-                <span className="text-[9px] text-neutral-gray uppercase font-bold tracking-wider block mb-1">Population</span>
-                <span className="text-[13px] font-bold text-slate-800">{activeWard.population?.toLocaleString()}</span>
-              </div>
-              <div>
-                <span className="text-[9px] text-neutral-gray uppercase font-bold tracking-wider block mb-1">Avg Need Index</span>
-                <span className="text-[13px] font-bold text-need-blue">{activeWard.avgNeedScore}</span>
-              </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">Priority Issues in {activeWard.name}:</h4>
+              {activeWard.issues.length === 0 ? (
+                <p className="text-xs text-slate-400 italic py-3">No active grievance clusters recorded in this ward.</p>
+              ) : (
+                <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+                  {activeWard.issues.map(iss => (
+                    <button
+                      key={iss.id}
+                      onClick={() => handleSelectCluster(iss)}
+                      type="button"
+                      className="w-full text-left p-2.5 rounded-lg border border-slate-200/80 hover:border-need-blue hover:bg-blue-50/40 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <SectorIcon type={iss.issue_type} className="w-3.5 h-3.5 text-slate-600" />
+                          <span className="text-xs font-bold text-slate-800 uppercase">{iss.issue_type}</span>
+                        </div>
+                        <span className="text-xs font-mono text-emerald-700 font-bold tabular-nums">₹{(iss.estimated_cost_inr / 100000).toFixed(1)}L</span>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-1">{iss.description || iss.id}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          <button
-            onClick={() => handleSelectCluster(activeWard.issues[0])}
-            disabled={activeWard.issues.length === 0}
-            className="bg-need-blue hover:bg-blue-700 text-white font-bold text-[12px] px-6 py-2.5 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-          >
-            View Details in Issues page →
-          </button>
+          <div className="pt-4 border-t border-slate-100 text-xs text-slate-400">
+            Source: Constituency Wards GIS & Field Registry
+          </div>
         </div>
       </div>
     </div>

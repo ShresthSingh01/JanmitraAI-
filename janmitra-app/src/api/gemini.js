@@ -1,92 +1,42 @@
-// Gemini API integration for Explanation Card
-// Strictly grounded in pre-computed cluster data per Anti-Hallucination rules
+// Client-side API proxy for cluster explanation
+// Zero client-side API keys exposed. All AI operations are securely proxied via backend.
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 export async function explainClusterPriority(cluster) {
-  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-  const isMock = !GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY" || GEMINI_API_KEY.includes("YOUR_");
-
-  const evidenceBullets = [
-    `Rank Position: #${cluster.rank}`,
-    `Ward: ${cluster.ward}`,
-    `Issue Type: ${cluster.issue_type}`,
-    `Affected Population: ${cluster.affected_population?.toLocaleString()} residents`,
-    `Service Gap (Nearest Facility): ${cluster.nearest_facility_km} km`,
-    `Historical Complaints Logged: ${cluster.complaint_count}`,
-    `Recurrence Score: ${cluster.recurrence_score}`,
-    `Estimated Cost: ₹${(cluster.estimated_cost_inr / 100000).toFixed(1)} Lakhs`,
-    `Priority Score: ${cluster.priority_score?.toFixed(3)}`,
-    ...(cluster.public_evidence || [])
-  ];
-
-  // Exact prompt template required by Master Build Prompt
-  const promptText = `You are an executive assistant to a Member of Parliament reviewing constituency development priorities.
-Here are the pre-computed facts and evidence for a priority project:
-
-${evidenceBullets.map((b) => `- ${b}`).join('\n')}
-
-Narrate these facts in plain language. Do not calculate, estimate, or add any number not provided above.`;
-
-  if (isMock) {
-    console.log("// MOCK: Gemini API key not set or placeholder. Returning grounded mock narration.");
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
+  if (!cluster) {
     return {
       isMock: true,
-      narrative: [
-        `Rank #${cluster.rank} Priority in ${cluster.ward}: Directly addresses ${cluster.issue_type} deficits affecting ${cluster.affected_population?.toLocaleString()} residents.`,
-        `High Service Gap: Nearest facility is ${cluster.nearest_facility_km} km away, substantiated by ${cluster.complaint_count} registered citizen complaints and public data (${cluster.public_evidence?.[0] || 'high recurrence'}).`,
-        `Cost-Effective Impact: Budget requirement of ₹${(cluster.estimated_cost_inr / 100000).toFixed(1)}L yields an optimal priority score of ${cluster.priority_score?.toFixed(3)}.`
-      ],
-      promptUsed: promptText
+      narrative: ["No project cluster selected for analysis."]
     };
   }
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptText }] }]
-        })
-      }
-    );
+    const response = await fetch(`${API_BASE_URL}/api/explain-cluster`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cluster })
+    });
 
-    const data = await response.json();
-    if (data.error) {
-      console.error("🔴 Google Gemini API Error:", data.error.message);
-      throw new Error(`Google API Error: ${data.error.message}`);
+    if (response.ok) {
+      const data = await response.json();
+      return data;
     }
-
-    const generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!generatedText) {
-      throw new Error("Invalid response structure from Gemini API");
-    }
-
-    // Split generated text into clean bullet points
-    const lines = generatedText
-      .split('\n')
-      .map((l) => l.replace(/^[-*•\d.\s]+/, '').trim())
-      .filter((l) => l.length > 0);
-
-    return {
-      isMock: false,
-      narrative: lines.length > 0 ? lines : [generatedText],
-      promptUsed: promptText
-    };
-  } catch (error) {
-    console.error("Gemini API call failed, falling back to grounded mock:", error);
-    return {
-      isMock: true,
-      narrative: [
-        `Rank #${cluster.rank} Priority in ${cluster.ward}: Serves ${cluster.affected_population?.toLocaleString()} residents with urgent ${cluster.issue_type} infrastructure needs.`,
-        `Service Gap: Facility distance is ${cluster.nearest_facility_km} km with ${cluster.complaint_count} logged complaints.`,
-        `Estimated Budget: ₹${(cluster.estimated_cost_inr / 100000).toFixed(1)}L with a score of ${cluster.priority_score?.toFixed(3)}.`
-      ],
-      error: error.message,
-      promptUsed: promptText
-    };
+  } catch (err) {
+    console.warn("Backend explain-cluster unreachable, using client-side grounded fallback:", err);
   }
+
+  // Anti-Hallucination grounded fallback when backend is unavailable
+  const costLakhs = cluster.estimated_cost_inr ? (cluster.estimated_cost_inr / 100000).toFixed(1) : "N/A";
+  const pop = cluster.affected_population ? cluster.affected_population.toLocaleString() : "N/A";
+  const priority = cluster.priority_score ? cluster.priority_score.toFixed(3) : "N/A";
+
+  return {
+    isMock: true,
+    narrative: [
+      `Rank #${cluster.rank || 1} Priority in ${cluster.ward || 'Constituency'}: Directly addresses critical ${cluster.issue_type || 'civic'} deficits affecting ${pop} residents.`,
+      `Service Gap: Nearest facility is ${cluster.nearest_facility_km || 0} km away, backed by ${cluster.complaint_count || 0} registered citizen complaints and local recurrence patterns.`,
+      `Cost-Effective Impact: Projected budget of ₹${costLakhs} Lakhs delivers an optimal priority score of ${priority}.`
+    ]
+  };
 }

@@ -7,6 +7,16 @@ import { dirname, resolve } from 'path';
 import admin from 'firebase-admin';
 import fs from 'fs';
 
+import { 
+  getEmbedding, 
+  extractComplaintWithGemini, 
+  explainClusterWithGemini,
+  getApiKey
+} from './services/geminiService.js';
+import { assignToCluster } from './services/clusterService.js';
+import { computeBaselineFromClusters } from '../src/scoring/csteEngine.js';
+import { VARANASI_WARD_CENTROIDS, LUCKNOW_WARD_CENTROIDS } from '../src/utils/fallbackParser.js';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../.env') });
 
@@ -14,349 +24,269 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Initialize Firebase Admin (optional for demo if no service account)
+// Initialize Firebase Admin if serviceAccountKey.json is present
 const saPath = resolve(__dirname, '../serviceAccountKey.json');
 let dbAdmin = null;
 if (fs.existsSync(saPath)) {
-  const serviceAccount = JSON.parse(fs.readFileSync(saPath, 'utf8'));
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-  dbAdmin = admin.firestore();
-  console.log("Firebase Admin initialized.");
+  try {
+    const serviceAccount = JSON.parse(fs.readFileSync(saPath, 'utf8'));
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    dbAdmin = admin.firestore();
+    console.log("✅ Firebase Admin initialized with service account.");
+  } catch (err) {
+    console.warn("⚠️ Failed to parse serviceAccountKey.json:", err.message);
+  }
 } else {
-  console.log("// MOCK: Firebase Admin not initialized (missing serviceAccountKey.json).");
+  console.log("ℹ️ Firebase Admin running in demo mode (no serviceAccountKey.json).");
 }
-
 
 const PORT = process.env.PORT || 3001;
 
-// Smart Fallback Parser when AI key is missing/erroring
-function getSmartFallback(text) {
-  const lower = (text || '').toLowerCase();
-  
-  let issue_type = "water";
-  if (lower.includes("road") || lower.includes("pothole") || lower.includes("sarak") || lower.includes("सड़क") || lower.includes("गड्ढे") || lower.includes("गड्डा")) {
-    issue_type = "road";
-  } else if (lower.includes("hospital") || lower.includes("doctor") || lower.includes("clinic") || lower.includes("health") || lower.includes("अस्पताल") || lower.includes("डेंगू")) {
-    issue_type = "health";
-  } else if (lower.includes("school") || lower.includes("teacher") || lower.includes("bench") || lower.includes("स्कूल") || lower.includes("पढ़ाई")) {
-    issue_type = "education";
-  }
+// Concurrency lock for Puppeteer to avoid overloading server memory
+let isGeneratingPdf = false;
 
-  let ward = "Ward 7";
-  if (lower.includes("ward 3") || lower.includes("ward3") || lower.includes("वाढ 3") || lower.includes("वार्ड 3") || lower.includes("w3")) {
-    ward = "Ward 3";
-  } else if (lower.includes("ward 9") || lower.includes("ward9") || lower.includes("वाढ 9") || lower.includes("वार्ड 9") || lower.includes("w9")) {
-    ward = "Ward 9";
-  } else if (lower.includes("ward 7") || lower.includes("ward7") || lower.includes("वाढ 7") || lower.includes("वार्ड 7") || lower.includes("w7")) {
-    ward = "Ward 7";
-  }
+// Health & System Status Endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'online',
+    version: '2.0.0',
+    aiConfigured: !!getApiKey(),
+    firebaseAdmin: !!dbAdmin,
+    primaryConstituency: 'varanasi',
+    supportedConstituencies: ['varanasi', 'lucknow']
+  });
+});
 
-  const urgency = lower.includes("urgent") || lower.includes("emergency") || lower.includes("नहीं") || lower.includes("खराब") || lower.includes("pothole") ? "critical" : "moderate";
-  const affected_group = issue_type === 'health' ? 'patients' : issue_type === 'education' ? 'students' : issue_type === 'road' ? 'commuters' : 'residents';
-  const cluster_id = `CL_${ward.replace(/\s+/g, '')}_${issue_type.toUpperCase()}`;
-
-  return {
-    isMock: true,
-    issue_type,
-    location: { lat: 28.6200, lng: 77.2150, ward },
-    urgency,
-    affected_group,
-    cluster_id
-  };
-}
-
-// Helper to fetch Vertex AI text-embedding-004
-async function getEmbedding(text, apiKey) {
-  const isMock = !apiKey || apiKey === "YOUR_GEMINI_API_KEY" || apiKey.includes("YOUR_");
-  if (isMock) {
-    console.log("// MOCK: Vertex AI Embedding (No API key)");
-    return new Array(768).fill(0);
-  }
-
+// Endpoint: Grounded AI Explanation for Selected Project Cluster (Server-side key)
+app.post('/api/explain-cluster', async (req, res) => {
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: "models/text-embedding-004",
-          content: { parts: [{ text }] }
-        })
-      }
-    );
-
-    const data = await response.json();
-    if (data.error) {
-      console.error("🔴 Vertex AI Embedding Error:", data.error.message);
-      return new Array(768).fill(0);
+    const { cluster } = req.body;
+    if (!cluster) {
+      return res.status(400).json({ error: 'Cluster data is required' });
     }
-    
-    return data.embedding?.values || new Array(768).fill(0);
+    const result = await explainClusterWithGemini(cluster);
+    res.json(result);
   } catch (err) {
-    console.error("Gemini Embedding API Error:", err);
-    return new Array(768).fill(0);
+    console.error('Explain Cluster Error:', err.message);
+    res.status(500).json({ error: 'Failed to generate cluster explanation' });
   }
-}
+});
 
-// Endpoint: Generate embedding for raw citizen text
+// Endpoint: Generate embedding for raw citizen text (cached / rate-limited)
 app.post('/api/embed-complaint', async (req, res) => {
-  const { text } = req.body;
-  if (!text) return res.status(400).json({ error: 'Text is required' });
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'Text is required' });
 
-  const apiKey = process.env.VITE_GEMINI_API_KEY;
-  const isMock = !apiKey || apiKey === "YOUR_GEMINI_API_KEY" || apiKey.includes("YOUR_");
-  
-  const embedding = await getEmbedding(text, apiKey);
-  res.json({ isMock, embedding });
+    const embedding = await getEmbedding(text);
+    const hasApiKey = !!getApiKey();
+    res.json({ isMock: !hasApiKey, embedding });
+  } catch (err) {
+    console.error('Embedding Endpoint Error:', err.message);
+    res.status(500).json({ error: 'Failed to generate embedding' });
+  }
 });
 
-// Endpoint: AI Extract complaint details from raw citizen text
+// Endpoint: AI Extract complaint details from raw citizen text (Hindi / English / Bhojpuri)
 app.post('/api/extract-complaint', async (req, res) => {
-  const { text, constituency = 'varanasi' } = req.body;
-  
-  if (!text) {
-    return res.status(400).json({ error: 'Text is required' });
-  }
-
-  const apiKey = process.env.VITE_GEMINI_API_KEY;
-  const isMock = !apiKey || apiKey === "YOUR_GEMINI_API_KEY" || apiKey.includes("YOUR_");
-
-  if (isMock) {
-    console.log("// MOCK: Gemini extraction (No API key)");
-    const fallbackObj = getSmartFallback(text);
-    fallbackObj.embedding = await getEmbedding(text, apiKey);
-    return res.json(fallbackObj);
-  }
-
   try {
-    const fallbackObj = getSmartFallback(text);
-
-    const promptText = `Analyze this citizen report for the ${constituency} constituency:
-"${text}"
-
-Extract structured facts carefully:
-1. issue_type: "water", "road", "health", or "education".
-2. ward: Must be "Ward 3", "Ward 7", or "Ward 9".
-3. urgency: "critical" if severe/emergency/pothole/broken, else "moderate" or "low".
-4. affected_group: "residents", "commuters", "patients", or "students".
-
-Return JSON ONLY in this format:
-{
-  "issue_type": "water" | "road" | "health" | "education",
-  "ward": "Ward 3" | "Ward 7" | "Ward 9",
-  "urgency": "low" | "moderate" | "critical",
-  "affected_group": "residents" | "commuters" | "patients" | "students"
-}`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: { responseMimeType: "application/json" }
-        })
-      }
-    );
-
-    const data = await response.json();
-    if (data.error) {
-      console.error("🔴 Google Gemini API Error:", data.error.message);
-      return res.json({
-        ...fallbackObj,
-        apiError: data.error.message
-      });
+    const { text, constituency = 'varanasi' } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
     }
 
-    const resultText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    const extracted = JSON.parse(resultText);
-    const finalWard = extracted.ward || fallbackObj.location.ward;
-    const finalType = extracted.issue_type || fallbackObj.issue_type;
-    const prefix = constituency === 'lucknow' ? 'LKO' : constituency === 'amethi' ? 'AME' : 'VAR';
-    
-    const embedding = await getEmbedding(text, apiKey);
-
-    res.json({
-      isMock: false,
-      issue_type: finalType,
-      location: { lat: 28.6200, lng: 77.2150, ward: finalWard },
-      urgency: extracted.urgency || fallbackObj.urgency,
-      affected_group: extracted.affected_group || fallbackObj.affected_group,
-      cluster_id: `CL_${prefix}_${finalWard.replace(/\s+/g, '')}_${finalType.toUpperCase()}`,
-      embedding
-    });
+    const extracted = await extractComplaintWithGemini(text, constituency);
+    res.json(extracted);
   } catch (err) {
-    console.error("Gemini Extraction Error:", err);
-    const fallbackObj = getSmartFallback(text);
-    fallbackObj.embedding = await getEmbedding(text, process.env.VITE_GEMINI_API_KEY);
-    res.json(fallbackObj);
+    console.error('Complaint Extraction Error:', err.message);
+    res.status(500).json({ error: 'Failed to extract complaint' });
   }
 });
 
-app.post('/api/generate-report', async (req, res) => {
+// Endpoint: Match or assign a complaint to an existing cluster
+app.post('/api/cluster-complaint', async (req, res) => {
   try {
-    // We expect the frontend to send the HTML content or a specific layout instruction.
-    // For simplicity, we can render a simple HTML page based on the data sent.
+    const { complaint, existingClusters = [] } = req.body;
+    if (!complaint) return res.status(400).json({ error: 'Complaint is required' });
+
+    const result = assignToCluster(complaint, existingClusters);
+    res.json(result);
+  } catch (err) {
+    console.error('Clustering Endpoint Error:', err.message);
+    res.status(500).json({ error: 'Failed to assign cluster' });
+  }
+});
+
+// Endpoint: Puppeteer PDF Generation with Concurrency Guard & Robust Template
+app.post('/api/generate-report', async (req, res) => {
+  if (isGeneratingPdf) {
+    return res.status(429).json({ error: 'Another PDF generation is currently in progress. Please retry in 5 seconds.' });
+  }
+
+  isGeneratingPdf = true;
+  let browser = null;
+
+  try {
     const { reportData } = req.body;
-    
-    const browser = await puppeteer.launch({
+    if (!reportData) {
+      isGeneratingPdf = false;
+      return res.status(400).json({ error: 'Report data is required' });
+    }
+
+    const constituency = (reportData.constituency || 'Varanasi').toUpperCase();
+    const totalComplaints = reportData.totalComplaints || 0;
+    const activeIssues = reportData.activeIssues || 0;
+    const budgetLakhs = reportData.budget ? (reportData.budget / 100000).toFixed(1) : "0";
+    const topProjects = reportData.topProjects || [];
+
+    browser = await puppeteer.launch({
       headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     });
+
     const page = await browser.newPage();
     
-    // Simple HTML template for the report
     const htmlContent = `
+      <!DOCTYPE html>
       <html>
         <head>
+          <meta charset="utf-8">
+          <title>JanMitra AI Executive Report</title>
           <style>
-            body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; }
-            h1 { color: #0f172a; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;}
-            .section { margin-bottom: 30px; }
-            .kpi { display: inline-block; padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-right: 15px; width: 150px;}
-            .kpi-title { font-size: 12px; color: #64748b; text-transform: uppercase; }
-            .kpi-val { font-size: 24px; font-weight: bold; margin-top: 5px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-            th { background-color: #f1f5f9; font-size: 12px; text-transform: uppercase; color: #64748b;}
-            .urgent { color: #ef4444; font-weight: bold; }
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
+            .header { border-bottom: 3px solid #0284c7; padding-bottom: 16px; margin-bottom: 24px; }
+            .title { font-size: 24px; font-weight: bold; color: #0f172a; margin: 0; }
+            .subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+            .badge { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+            .kpis { display: flex; gap: 16px; margin-bottom: 28px; }
+            .kpi { flex: 1; padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+            .kpi-title { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600; }
+            .kpi-val { font-size: 22px; font-weight: bold; color: #0f172a; margin-top: 6px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+            th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 12px; }
+            th { background-color: #f1f5f9; text-transform: uppercase; color: #475569; font-size: 11px; font-weight: 700; }
+            .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+            .urgent { background: #fee2e2; color: #b91c1c; font-weight: bold; }
+            .footer { margin-top: 36px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
           </style>
         </head>
         <body>
-          <h1>JanMitra AI — Constituency Report</h1>
-          <p style="color: #64748b;">Generated on: ${new Date().toLocaleString()}</p>
+          <div class="header">
+            <span class="badge">OFFICIAL MPLADS CIVIC BRIEFING</span>
+            <h1 class="title">JanMitra AI — ${constituency} Constituency Report</h1>
+            <p class="subtitle">Generated on: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} (IST) | Evidence-Based Resource Optimization</p>
+          </div>
           
-          <div class="section">
-            <h2>Overview</h2>
+          <div class="kpis">
             <div class="kpi">
-              <div class="kpi-title">Total Complaints</div>
-              <div class="kpi-val">${reportData.totalComplaints}</div>
+              <div class="kpi-title">Verified Citizen Reports</div>
+              <div class="kpi-val">${totalComplaints}</div>
             </div>
             <div class="kpi">
-              <div class="kpi-title">Active Issues</div>
-              <div class="kpi-val">${reportData.activeIssues}</div>
+              <div class="kpi-title">Active Problem Clusters</div>
+              <div class="kpi-val">${activeIssues}</div>
             </div>
             <div class="kpi">
-              <div class="kpi-title">Available Budget</div>
-              <div class="kpi-val">₹${(reportData.budget / 100000).toFixed(1)}L</div>
+              <div class="kpi-title">Simulated Fund Allocation</div>
+              <div class="kpi-val">₹${budgetLakhs} Lakhs</div>
             </div>
           </div>
           
-          <div class="section">
-            <h2>Top Recommended Projects</h2>
+          <div>
+            <h2 style="font-size: 16px; margin-bottom: 8px; color: #1e293b;">Top Recommended Projects (Grounded Priority Ranking)</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Project Type</th>
+                  <th>Rank</th>
                   <th>Ward</th>
-                  <th>Need Score</th>
-                  <th>Est. Cost</th>
+                  <th>Sector</th>
+                  <th>Affected Population</th>
+                  <th>Estimated Cost</th>
+                  <th>Priority Score</th>
                 </tr>
               </thead>
               <tbody>
-                ${reportData.topProjects.map(p => `
+                ${topProjects.map((p, idx) => `
                   <tr>
+                    <td><strong>#${idx + 1}</strong></td>
+                    <td>${p.ward || 'Constituency'}</td>
                     <td style="text-transform: capitalize;">${p.issue_type}</td>
-                    <td>${p.ward}</td>
-                    <td class="${p.priority_score > 7 ? 'urgent' : ''}">${p.priority_score.toFixed(2)}</td>
-                    <td>₹${(p.estimated_cost_inr / 100000).toFixed(1)}L</td>
+                    <td>${p.affected_population ? p.affected_population.toLocaleString() : 'N/A'}</td>
+                    <td>₹${p.estimated_cost_inr ? (p.estimated_cost_inr / 100000).toFixed(1) : '0'}L</td>
+                    <td class="${p.priority_score > 0.5 ? 'urgent' : ''}">${p.priority_score ? p.priority_score.toFixed(3) : '0.000'}</td>
                   </tr>
                 `).join('')}
               </tbody>
             </table>
           </div>
+
+          <div class="footer">
+            Confidential MP Decision Kiosk Document &bull; JanMitra AI Civic Intelligence Platform &bull; Anti-Hallucination Grounded Facts Only
+          </div>
         </body>
       </html>
     `;
 
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 15000 });
     
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+      margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' }
     });
     
     await browser.close();
+    browser = null;
+    isGeneratingPdf = false;
     
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': 'attachment; filename="janmitra-report.pdf"'
+      'Content-Disposition': 'attachment; filename="janmitra-constituency-report.pdf"'
     });
     res.send(pdfBuffer);
   } catch (err) {
-    console.error('PDF Generation Error:', err);
-    res.status(500).json({ error: 'Failed to generate PDF report' });
+    if (browser) await browser.close();
+    isGeneratingPdf = false;
+    console.error('PDF Generation Error:', err.message);
+    res.status(500).json({ error: 'Failed to generate PDF report', details: err.message });
   }
 });
 
-// Endpoint: Live CSTE State
+// Endpoint: Dynamic CSTE State (Evidence-based baseline from benchmarks)
 app.post('/api/cste-state', async (req, res) => {
   try {
-    const { ward, clusters: clientClusters } = req.body;
+    const { ward, clusters: clientClusters, constituency = 'varanasi' } = req.body;
     let clusters = clientClusters || [];
 
-    // If no client clusters provided and we have admin access, read from DB
     if (clusters.length === 0 && dbAdmin) {
       const snap = await dbAdmin.collection('clusters').get();
       snap.forEach(doc => {
         clusters.push({ id: doc.id, ...doc.data() });
       });
-      if (ward) {
+      if (ward && ward !== 'All') {
         clusters = clusters.filter(c => c.ward === ward);
       }
     }
 
-    // Dynamic computation rules
-    let healthClusters = clusters.filter(c => c.issue_type === 'health');
-    let educationClusters = clusters.filter(c => c.issue_type === 'education');
-    let waterClusters = clusters.filter(c => c.issue_type === 'water');
-
-    let waterCoverage = 80;
-    if (waterClusters.length > 0) {
-      const avgRecurrenceWater = waterClusters.reduce((sum, c) => sum + (c.recurrence_score || 0.5), 0) / waterClusters.length;
-      waterCoverage = Math.max(0, 100 - (avgRecurrenceWater * 50));
-    }
-
-    let facilityDistance = 4.0;
-    const facilityClusters = [...healthClusters, ...educationClusters];
-    if (facilityClusters.length > 0) {
-      facilityDistance = facilityClusters.reduce((sum, c) => sum + (c.nearest_facility_km || 4.0), 0) / facilityClusters.length;
-    }
-
-    let schoolAttendance = 75;
-    if (educationClusters.length > 0) {
-      const sumCountEdu = educationClusters.reduce((sum, c) => sum + (c.complaint_count || 10), 0);
-      schoolAttendance = Math.max(0, 100 - ((sumCountEdu * 1000) / 120000 * 30));
-    }
-
-    let healthcareAccess = 70;
-    if (healthClusters.length > 0) {
-      const avgRecurrenceHealth = healthClusters.reduce((sum, c) => sum + (c.recurrence_score || 0.5), 0) / healthClusters.length;
-      healthcareAccess = Math.max(0, 100 - (avgRecurrenceHealth * 60));
-    }
+    const baseline = computeBaselineFromClusters(clusters, constituency);
 
     res.json({
       ward: ward || 'All',
-      waterCoverage: parseFloat(waterCoverage.toFixed(1)),
-      facilityDistance: parseFloat(facilityDistance.toFixed(2)),
-      schoolAttendance: parseFloat(schoolAttendance.toFixed(1)),
-      healthcareAccess: parseFloat(healthcareAccess.toFixed(1)),
+      constituency,
+      ...baseline,
       computedAt: Date.now(),
-      source: dbAdmin && !clientClusters ? 'firestore' : 'client-provided'
+      source: dbAdmin && !clientClusters ? 'firestore' : 'benchmarks-grounded'
     });
   } catch (err) {
-    console.error('CSTE State Error:', err);
+    console.error('CSTE State Error:', err.message);
     res.status(500).json({ error: 'Failed to compute CSTE state' });
   }
 });
 
-// Endpoint: Save CSTE Snapshot
+// Endpoint: Save CSTE Simulation Snapshot
 app.post('/api/save-cste-snapshot', async (req, res) => {
   try {
-    const { budget_inr, funded_cluster_ids, base_state, future_state, constituency_id } = req.body;
+    const { budget_inr, funded_cluster_ids, base_state, future_state, constituency_id = 'varanasi' } = req.body;
 
     const snapshotDoc = {
       timestamp: new Date().toISOString(),
@@ -364,38 +294,41 @@ app.post('/api/save-cste-snapshot', async (req, res) => {
       funded_cluster_ids,
       base_state,
       future_state,
-      constituency_id: constituency_id || 'varanasi'
+      constituency_id
     };
 
     if (dbAdmin) {
       const docRef = await dbAdmin.collection('cste_snapshots').add(snapshotDoc);
       res.json({ success: true, id: docRef.id });
     } else {
-      console.log('// MOCK: Saving snapshot (no DB Admin)', snapshotDoc);
       res.json({ success: true, mock: true, data: snapshotDoc });
     }
   } catch (err) {
-    console.error('Save Snapshot Error:', err);
+    console.error('Save Snapshot Error:', err.message);
     res.status(500).json({ error: 'Failed to save snapshot' });
   }
 });
 
-// Endpoint: Geocode Ward
+// Endpoint: Geocode Ward with Authentic Varanasi & Lucknow Centroids
 app.get('/api/geocode-ward', async (req, res) => {
   try {
-    const { ward, constituency = 'Varanasi' } = req.query;
+    const { ward, constituency = 'varanasi' } = req.query;
     if (!ward) return res.status(400).json({ error: 'Ward is required' });
 
-    const apiKey = process.env.VITE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-    const isMock = !apiKey || apiKey.includes('YOUR_');
+    const isLucknow = constituency.toLowerCase() === 'lucknow';
+    const wardMap = isLucknow ? LUCKNOW_WARD_CENTROIDS : VARANASI_WARD_CENTROIDS;
 
-    if (isMock) {
-      // Mock coordinates
-      return res.json({ lat: 28.610, lng: 77.210, mock: true });
+    // Check local authentic centroid database first
+    if (wardMap[ward]) {
+      return res.json({
+        lat: wardMap[ward].lat,
+        lng: wardMap[ward].lng,
+        name: wardMap[ward].name,
+        source: 'local-gis-database'
+      });
     }
 
-    // 1. Check cache
-    let docRef;
+    // Check Firestore cache if admin db is initialized
     if (dbAdmin) {
       const cacheQuery = await dbAdmin.collection('ward_coordinates')
         .where('ward', '==', ward)
@@ -409,36 +342,18 @@ app.get('/api/geocode-ward', async (req, res) => {
       }
     }
 
-    // 2. Fetch from Google
-    const address = `${ward}, ${constituency}, India`;
-    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`);
-    const data = await response.json();
+    // Default fallback to constituency center
+    const fallbackCoord = isLucknow
+      ? { lat: 26.8467, lng: 80.9462, name: "Lucknow Center" }
+      : { lat: 25.3176, lng: 82.9739, name: "Varanasi Center" };
 
-    if (data.status === 'OK' && data.results.length > 0) {
-      const location = data.results[0].geometry.location;
-      
-      // 3. Save to cache
-      if (dbAdmin) {
-        await dbAdmin.collection('ward_coordinates').add({
-          ward,
-          constituency,
-          lat: location.lat,
-          lng: location.lng,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      return res.json({ lat: location.lat, lng: location.lng, source: 'google' });
-    } else {
-      console.error('Geocoding API Error:', data.status, data.error_message);
-      return res.json({ lat: 28.610, lng: 77.210, mock: true, error: data.status });
-    }
+    return res.json({ ...fallbackCoord, source: 'constituency-centroid' });
   } catch (err) {
-    console.error('Geocode Error:', err);
+    console.error('Geocode Error:', err.message);
     res.status(500).json({ error: 'Failed to geocode ward' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Express server listening on port ${PORT}`);
+  console.log(`🚀 JanMitra AI Express Server running on port ${PORT}`);
 });

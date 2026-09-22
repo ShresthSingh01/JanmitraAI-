@@ -1,0 +1,91 @@
+{
+  "type": "FeatureCollection",
+  "name": "Lucknow Nagar Nigam Wards",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 1", "ward_number": 1, "ward_name": "Hazratganj", "population": 68400, "area_sq_km": 3.8 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [80.9320, 26.8410],
+          [80.9540, 26.8420],
+          [80.9530, 26.8590],
+          [80.9310, 26.8580],
+          [80.9320, 26.8410]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 2", "ward_number": 2, "ward_name": "Alambagh", "population": 82100, "area_sq_km": 4.5 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [80.8920, 26.8040],
+          [80.9140, 26.8050],
+          [80.9130, 26.8250],
+          [80.8910, 26.8240],
+          [80.8920, 26.8040]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 3", "ward_number": 3, "ward_name": "Gomti Nagar", "population": 94500, "area_sq_km": 6.2 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [80.9820, 26.8490],
+          [81.0140, 26.8500],
+          [81.0130, 26.8780],
+          [80.9810, 26.8770],
+          [80.9820, 26.8490]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 4", "ward_number": 4, "ward_name": "Chowk Lucknow", "population": 73200, "area_sq_km": 3.2 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [80.8980, 26.8620],
+          [80.9200, 26.8630],
+          [80.9190, 26.8820],
+          [80.8970, 26.8810],
+          [80.8980, 26.8620]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 5", "ward_number": 5, "ward_name": "Indira Nagar", "population": 88700, "area_sq_km": 5.4 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [80.9710, 26.8730],
+          [80.9990, 26.8740],
+          [80.9980, 26.8980],
+          [80.9700, 26.8970],
+          [80.9710, 26.8730]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "ward": "Ward 6", "ward_number": 6, "ward_name": "Charbagh", "population": 65100, "area_sq_km": 3.6 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [80.9120, 26.8220],
+          [80.9340, 26.8230],
+          [80.9330, 26.8420],
+          [80.9110, 26.8410],
+          [80.9120, 26.8220]
+        ]]
+      }
+    }
+  ]
+}

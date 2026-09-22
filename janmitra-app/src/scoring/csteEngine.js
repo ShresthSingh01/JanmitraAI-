@@ -1,121 +1,150 @@
 /**
- * Constituency State Transition Engine (CSTE)
- * Simulates the "before" and "after" state of the constituency based on the funded portfolio.
- * Formula upgraded to use multi-factor data mapping dynamically from live clusters.
+ * Constituency State Transition Engine (CSTE) - Evidence-Based Digital Twin
+ * Grounded in real Indian government benchmarks (JJM, UDISE+, NFHS-5).
+ * Simulates before-and-after civic outcomes based on funded project portfolio.
  */
 
-const WARD_TOTAL_POPULATION = 120000; // Estimated total population for the constituency
+import { DISTRICT_BASELINES } from './benchmarks.js';
 
 /**
- * Computes the baseline constituency state dynamically from current live clusters.
+ * Computes baseline state by anchoring to official district indicators
+ * and modulating by actual open citizen complaint clusters.
  */
-export function computeBaselineFromClusters(clusters) {
+export function computeBaselineFromClusters(clusters = [], constituency = 'varanasi') {
+  const districtKey = constituency?.toLowerCase() === 'lucknow' ? 'lucknow' : 'varanasi';
+  const baseline = DISTRICT_BASELINES[districtKey] || DISTRICT_BASELINES.varanasi;
+
   if (!clusters || clusters.length === 0) {
     return {
-      facilityDistance: 5.0,
-      schoolAttendance: 50,
-      waterCoverage: 50,
-      healthcareAccess: 50
+      waterCoverage: baseline.waterCoverage,
+      schoolAttendance: baseline.schoolAttendance,
+      healthcareAccess: baseline.healthcareAccess,
+      facilityDistance: baseline.avgFacilityDistance,
+      benchmarkSource: baseline.sources
     };
   }
 
-  let healthClusters = [];
-  let educationClusters = [];
-  let waterClusters = [];
-
-  for (const c of clusters) {
-    if (c.issue_type === 'health') healthClusters.push(c);
-    else if (c.issue_type === 'education') educationClusters.push(c);
-    else if (c.issue_type === 'water') waterClusters.push(c);
-  }
-
-  // Water Coverage: 100 - (avgRecurrenceScore_water * 50)
-  let waterCoverage = 80; // Safe default if no water complaints
-  if (waterClusters.length > 0) {
-    const avgRecurrenceWater = waterClusters.reduce((sum, c) => sum + (c.recurrence_score || 0.5), 0) / waterClusters.length;
-    waterCoverage = Math.max(0, 100 - (avgRecurrenceWater * 50));
-  }
-
-  // Facility Distance: average nearest_facility_km for health + education
-  let facilityDistance = 4.0;
+  // Filter clusters by civic domain
+  const waterClusters = clusters.filter(c => c.issue_type === 'water' || c.issue_type === 'drainage');
+  const healthClusters = clusters.filter(c => c.issue_type === 'health');
+  const educationClusters = clusters.filter(c => c.issue_type === 'education');
   const facilityClusters = [...healthClusters, ...educationClusters];
-  if (facilityClusters.length > 0) {
-    const avgDist = facilityClusters.reduce((sum, c) => sum + (c.nearest_facility_km || 4.0), 0) / facilityClusters.length;
-    facilityDistance = avgDist;
+
+  // 1. Water Coverage: Starts from JJM FHTC baseline, modulated by active complaint density
+  let waterCoverage = baseline.waterCoverage;
+  if (waterClusters.length > 0) {
+    const avgRecurrence = waterClusters.reduce((sum, c) => sum + (c.recurrence_score || 0.5), 0) / waterClusters.length;
+    const totalAffected = waterClusters.reduce((sum, c) => sum + (c.affected_population || 5000), 0);
+    const impactPenalty = Math.min(18, (avgRecurrence * 10) + (totalAffected / baseline.totalPopulation * 100));
+    waterCoverage = Math.max(30, baseline.waterCoverage - impactPenalty);
   }
 
-  // School Attendance: 100 - (sumComplaintCount_education / WARD_TOTAL_POPULATION * 30)
-  let schoolAttendance = 75;
+  // 2. School Attendance: Starts from UDISE+ baseline, adjusted for school infrastructure deficits
+  let schoolAttendance = baseline.schoolAttendance;
   if (educationClusters.length > 0) {
-    const sumCountEdu = educationClusters.reduce((sum, c) => sum + (c.complaint_count || 10), 0);
-    // Multiply by a factor so small sample numbers move the needle for the demo
-    schoolAttendance = Math.max(0, 100 - ((sumCountEdu * 1000) / WARD_TOTAL_POPULATION * 30));
+    const sumComplaints = educationClusters.reduce((sum, c) => sum + (c.complaint_count || 5), 0);
+    const avgRecurrence = educationClusters.reduce((sum, c) => sum + (c.recurrence_score || 0.5), 0) / educationClusters.length;
+    const penalty = Math.min(15, (sumComplaints * 0.12) + (avgRecurrence * 6));
+    schoolAttendance = Math.max(40, baseline.schoolAttendance - penalty);
   }
 
-  // Healthcare Access: 100 - (avgRecurrenceScore_health * 60)
-  let healthcareAccess = 70;
+  // 3. Healthcare Access: Starts from NFHS-5 baseline, adjusted for PHC shortage
+  let healthcareAccess = baseline.healthcareAccess;
   if (healthClusters.length > 0) {
-    const avgRecurrenceHealth = healthClusters.reduce((sum, c) => sum + (c.recurrence_score || 0.5), 0) / healthClusters.length;
-    healthcareAccess = Math.max(0, 100 - (avgRecurrenceHealth * 60));
+    const avgRecurrence = healthClusters.reduce((sum, c) => sum + (c.recurrence_score || 0.5), 0) / healthClusters.length;
+    const penalty = Math.min(20, avgRecurrence * 16);
+    healthcareAccess = Math.max(35, baseline.healthcareAccess - penalty);
+  }
+
+  // 4. Facility Distance: Weighted average of nearest facility distances from GIS
+  let facilityDistance = baseline.avgFacilityDistance;
+  if (facilityClusters.length > 0) {
+    const totalWeight = facilityClusters.reduce((sum, c) => sum + (c.complaint_count || 1), 0);
+    const weightedSum = facilityClusters.reduce((sum, c) => sum + ((c.nearest_facility_km || baseline.avgFacilityDistance) * (c.complaint_count || 1)), 0);
+    facilityDistance = totalWeight > 0 ? (weightedSum / totalWeight) : baseline.avgFacilityDistance;
   }
 
   return {
-    facilityDistance: parseFloat(facilityDistance.toFixed(2)),
-    schoolAttendance: parseFloat(schoolAttendance.toFixed(1)),
     waterCoverage: parseFloat(waterCoverage.toFixed(1)),
-    healthcareAccess: parseFloat(healthcareAccess.toFixed(1))
+    schoolAttendance: parseFloat(schoolAttendance.toFixed(1)),
+    healthcareAccess: parseFloat(healthcareAccess.toFixed(1)),
+    facilityDistance: parseFloat(facilityDistance.toFixed(2)),
+    benchmarkSource: baseline.sources
   };
 }
 
-export function simulateCSTE(fundedClusters, allClusters) {
-  // Base State (computed dynamically)
-  const baseState = computeBaselineFromClusters(allClusters);
-  
-  // Future State (starts as baseline, gets modified by projects)
+/**
+ * Simulates the future state after implementing the funded project portfolio.
+ */
+export function simulateCSTE(fundedClusters = [], allClusters = [], constituency = 'varanasi') {
+  const districtKey = constituency?.toLowerCase() === 'lucknow' ? 'lucknow' : 'varanasi';
+  const baselineConfig = DISTRICT_BASELINES[districtKey] || DISTRICT_BASELINES.varanasi;
+  const baseState = computeBaselineFromClusters(allClusters, constituency);
   const futureState = { ...baseState };
 
+  // Calculate infrastructure connectivity multiplier from road & drainage works
   let roadConnectivityBonus = 0;
-
-  // First pass: Calculate road improvements which act as multipliers
-  (fundedClusters || []).forEach(cluster => {
-    if (cluster.issue_type === 'road') {
-      const populationRatio = (cluster.affected_population || 1000) / WARD_TOTAL_POPULATION;
-      const recurrenceFactor = cluster.recurrence_score || 0.5;
-      roadConnectivityBonus += (5 * populationRatio * recurrenceFactor);
+  fundedClusters.forEach(cluster => {
+    if (cluster.issue_type === 'road' || cluster.issue_type === 'bridge') {
+      const popRatio = (cluster.affected_population || 10000) / baselineConfig.totalPopulation;
+      const recFactor = cluster.recurrence_score || 0.5;
+      roadConnectivityBonus += (4.5 * popRatio * 20 * recFactor);
       
-      futureState.facilityDistance = Math.max(0, futureState.facilityDistance - (0.5 * recurrenceFactor));
+      // Road repair directly cuts emergency travel distance
+      futureState.facilityDistance = Math.max(1.2, futureState.facilityDistance - (0.45 * recFactor));
     }
   });
 
-  // Second pass: Calculate domain-specific improvements
-  (fundedClusters || []).forEach(cluster => {
-    const populationRatio = (cluster.affected_population || 1000) / WARD_TOTAL_POPULATION;
-    const recurrenceFactor = cluster.recurrence_score || 0.5;
-    
-    switch(cluster.issue_type) {
-      case 'education':
-        const baseAttendanceImpr = 25 * populationRatio * recurrenceFactor;
-        futureState.schoolAttendance = Math.min(100, futureState.schoolAttendance + baseAttendanceImpr + roadConnectivityBonus);
+  // Calculate domain improvements from funded projects
+  fundedClusters.forEach(cluster => {
+    const popRatio = (cluster.affected_population || 10000) / baselineConfig.totalPopulation;
+    const recFactor = cluster.recurrence_score || 0.5;
+
+    switch (cluster.issue_type) {
+      case 'water': {
+        // Impact scales with population resolved and recurrence eliminated
+        const waterGain = Math.min(18, (popRatio * 180) + (recFactor * 4.2));
+        futureState.waterCoverage = Math.min(99.5, futureState.waterCoverage + waterGain);
         break;
-      case 'water':
-        const waterImpr = 200 * populationRatio * recurrenceFactor;
-        futureState.waterCoverage = Math.min(100, futureState.waterCoverage + waterImpr);
+      }
+      case 'education': {
+        const eduGain = Math.min(14, (popRatio * 140) + (recFactor * 3.5) + roadConnectivityBonus);
+        futureState.schoolAttendance = Math.min(98.5, futureState.schoolAttendance + eduGain);
         break;
-      case 'health':
-        const healthImpr = 150 * populationRatio * recurrenceFactor;
-        futureState.healthcareAccess = Math.min(100, futureState.healthcareAccess + healthImpr + (roadConnectivityBonus * 1.5));
-        futureState.facilityDistance = Math.max(0, futureState.facilityDistance - (0.3 * recurrenceFactor));
+      }
+      case 'health': {
+        const healthGain = Math.min(22, (popRatio * 160) + (recFactor * 5.0) + (roadConnectivityBonus * 1.2));
+        futureState.healthcareAccess = Math.min(97.0, futureState.healthcareAccess + healthGain);
+        futureState.facilityDistance = Math.max(1.0, futureState.facilityDistance - (0.35 * recFactor));
         break;
+      }
+      case 'drainage':
+      case 'sanitation': {
+        // Sanitation directly protects water quality and eliminates water-borne disease
+        const sanitGain = Math.min(8, (popRatio * 90) + 1.8);
+        futureState.waterCoverage = Math.min(99.0, futureState.waterCoverage + (sanitGain * 0.5));
+        futureState.healthcareAccess = Math.min(97.0, futureState.healthcareAccess + (sanitGain * 0.7));
+        break;
+      }
       default:
         break;
     }
   });
 
-  // Round values for UI presentation
-  futureState.facilityDistance = parseFloat(futureState.facilityDistance.toFixed(2));
-  futureState.schoolAttendance = parseFloat(futureState.schoolAttendance.toFixed(1));
   futureState.waterCoverage = parseFloat(futureState.waterCoverage.toFixed(1));
+  futureState.schoolAttendance = parseFloat(futureState.schoolAttendance.toFixed(1));
   futureState.healthcareAccess = parseFloat(futureState.healthcareAccess.toFixed(1));
+  futureState.facilityDistance = parseFloat(futureState.facilityDistance.toFixed(2));
 
-  return { baseState, futureState, computedAt: Date.now() };
+  return {
+    baseState,
+    futureState,
+    improvements: {
+      waterDelta: parseFloat((futureState.waterCoverage - baseState.waterCoverage).toFixed(1)),
+      educationDelta: parseFloat((futureState.schoolAttendance - baseState.schoolAttendance).toFixed(1)),
+      healthDelta: parseFloat((futureState.healthcareAccess - baseState.healthcareAccess).toFixed(1)),
+      distanceDelta: parseFloat((baseState.facilityDistance - futureState.facilityDistance).toFixed(2))
+    },
+    computedAt: Date.now()
+  };
 }

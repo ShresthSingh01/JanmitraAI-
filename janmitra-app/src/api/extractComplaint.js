@@ -1,43 +1,8 @@
 import { db } from '../firebase';
 import { collection, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
-import { CLUSTERS } from '../../scripts/seedData.js';
+import { getSmartFallback } from '../utils/fallbackParser';
 
-function getSmartFallback(text) {
-  const lower = (text || '').toLowerCase();
-  
-  let issue_type = "water";
-  if (lower.includes("road") || lower.includes("pothole") || lower.includes("sarak") || lower.includes("सड़क") || lower.includes("गड्ढे") || lower.includes("गड्डा")) {
-    issue_type = "road";
-  } else if (lower.includes("hospital") || lower.includes("doctor") || lower.includes("clinic") || lower.includes("health") || lower.includes("अस्पताल") || lower.includes("डेंगू")) {
-    issue_type = "health";
-  } else if (lower.includes("school") || lower.includes("teacher") || lower.includes("bench") || lower.includes("स्कूल") || lower.includes("पढ़ाई")) {
-    issue_type = "education";
-  }
-
-  let ward = "Ward 7";
-  if (lower.includes("ward 3") || lower.includes("ward3") || lower.includes("वाढ 3") || lower.includes("वार्ड 3") || lower.includes("w3")) {
-    ward = "Ward 3";
-  } else if (lower.includes("ward 9") || lower.includes("ward9") || lower.includes("वाढ 9") || lower.includes("वार्ड 9") || lower.includes("w9")) {
-    ward = "Ward 9";
-  } else if (lower.includes("ward 7") || lower.includes("ward7") || lower.includes("वाढ 7") || lower.includes("वार्ड 7") || lower.includes("w7")) {
-    ward = "Ward 7";
-  }
-
-  const urgency = lower.includes("urgent") || lower.includes("emergency") || lower.includes("नहीं") || lower.includes("खराब") || lower.includes("pothole") ? "critical" : "moderate";
-  const affected_group = issue_type === 'health' ? 'patients' : issue_type === 'education' ? 'students' : issue_type === 'road' ? 'commuters' : 'residents';
-  const cluster_id = `CL_${ward.replace(/\s+/g, '')}_${issue_type.toUpperCase()}`;
-
-  return {
-    isMock: true,
-    issue_type,
-    location: { lat: 28.6200, lng: 77.2150, ward },
-    urgency,
-    affected_group,
-    cluster_id
-  };
-}
-
-export async function submitCitizenComplaint(rawText, language = 'hi') {
+export async function submitCitizenComplaint(rawText, language = 'hi', constituency = 'varanasi') {
   try {
     // 1. Call Backend AI Extraction
     let extractedData;
@@ -46,33 +11,35 @@ export async function submitCitizenComplaint(rawText, language = 'hi') {
       const response = await fetch(`${API_BASE_URL}/api/extract-complaint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: rawText })
+        body: JSON.stringify({ text: rawText, constituency })
       });
 
       if (response.ok) {
         extractedData = await response.json();
       } else {
-        extractedData = getSmartFallback(rawText);
+        extractedData = getSmartFallback(rawText, constituency);
       }
-    } catch (e) {
-      extractedData = getSmartFallback(rawText);
+    } catch {
+      extractedData = getSmartFallback(rawText, constituency);
     }
 
     const complaintDoc = {
       id: `C${Date.now().toString().slice(-4)}`,
       raw_text: rawText,
       language,
+      constituency,
       extracted: {
         issue_type: extractedData.issue_type,
         location: extractedData.location,
         urgency: extractedData.urgency,
-        affected_group: extractedData.affected_group
+        affected_group: extractedData.affected_group,
+        severity_rationale: extractedData.severity_rationale
       },
       cluster_id: extractedData.cluster_id,
       timestamp: new Date().toISOString()
     };
 
-    // 2. Write to Firestore
+    // 2. Persist to Firestore if configured
     const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
     const isFirebaseValid = projectId && !projectId.includes("YOUR_");
 
@@ -80,7 +47,7 @@ export async function submitCitizenComplaint(rawText, language = 'hi') {
       try {
         await addDoc(collection(db, 'complaints'), complaintDoc);
         
-        // 3. Update Cluster in Firestore
+        // Update Cluster in Firestore
         const clusterRef = doc(db, 'clusters', extractedData.cluster_id);
         const clusterSnap = await getDoc(clusterRef);
         
@@ -91,15 +58,28 @@ export async function submitCitizenComplaint(rawText, language = 'hi') {
             complaint_count: prevCount + 1,
             recurrence_score: Math.min(1.0, (currentCluster.recurrence_score || 0.5) + 0.05)
           });
-          console.log(`✅ Updated cluster ${extractedData.cluster_id} complaint count: ${prevCount} -> ${prevCount + 1} in Firestore`);
-        } else {
-          console.warn(`Cluster ${extractedData.cluster_id} not found in Firestore.`);
         }
       } catch (dbErr) {
-        console.error("Firestore write failed:", dbErr.message);
+        console.warn("Firestore write failed, using local persistence:", dbErr.message);
       }
-    } else {
-      console.log("Firestore unconfigured, skipping DB write.");
+    }
+
+    // Always update local cache so dashboard immediately reflects the new complaint
+    try {
+      const localComplaints = JSON.parse(localStorage.getItem('jm_complaints') || '[]');
+      localComplaints.unshift(complaintDoc);
+      localStorage.setItem('jm_complaints', JSON.stringify(localComplaints.slice(0, 100)));
+
+      // Increment cluster count in localStorage clusters
+      const localClusters = JSON.parse(localStorage.getItem('jm_clusters') || '[]');
+      const matched = localClusters.find(c => c.id === extractedData.cluster_id);
+      if (matched) {
+        matched.complaint_count = (matched.complaint_count || 0) + 1;
+        matched.recurrence_score = Math.min(1.0, (matched.recurrence_score || 0.5) + 0.04);
+        localStorage.setItem('jm_clusters', JSON.stringify(localClusters));
+      }
+    } catch (e) {
+      console.warn("Local storage update error:", e);
     }
 
     return {

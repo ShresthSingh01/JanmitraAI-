@@ -1,209 +1,509 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Wrapper } from '@googlemaps/react-wrapper';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { VARANASI_WARD_CENTROIDS, LUCKNOW_WARD_CENTROIDS } from '../utils/fallbackParser';
 
-function GoogleMapInner({ clusters, selectedCluster, hoveredCluster, onSelectCluster, onSelectWard, geoData }) {
-  const mapRef = useRef(null);
-  const [map, setMap] = useState(null);
-  const markersRef = useRef([]);
+const CONSTITUENCY_CENTERS = {
+  varanasi: { lat: 25.3176, lng: 82.9739, zoom: 13, name: "Varanasi (UP-77)" },
+  lucknow: { lat: 26.8467, lng: 80.9462, zoom: 12, name: "Lucknow (UP-35)" }
+};
 
-  useEffect(() => {
-    if (mapRef.current && !map) {
-      const newMap = new window.google.maps.Map(mapRef.current, {
-        center: { lat: 28.610, lng: 77.210 },
-        zoom: 14,
-        disableDefaultUI: true,
-        styles: [
-          { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
-          { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
-          { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] }
-        ]
-      });
-      setMap(newMap);
-    }
-  }, [mapRef, map]);
+// Custom SVG DivIcon generator for Leaflet
+function createClusterIcon(cluster, isSelected, isHovered) {
+  const isCritical = cluster.urgency === 'critical' || (cluster.priority_score && cluster.priority_score > 0.6);
+  const isModerate = !isCritical && (cluster.priority_score > 0.4 || cluster.urgency === 'moderate');
+  
+  const color = isCritical ? '#ef4444' : isModerate ? '#f97316' : '#0ea5e9';
+  const glowColor = isCritical ? 'rgba(239, 68, 68, 0.4)' : isModerate ? 'rgba(249, 115, 22, 0.4)' : 'rgba(14, 165, 233, 0.4)';
+  const size = isSelected ? 34 : isHovered ? 30 : 24;
 
-  // Handle GeoJSON data
-  useEffect(() => {
-    if (map && geoData) {
-      map.data.addGeoJson(geoData);
-      map.data.setStyle({
-        fillColor: '#1e293b',
-        fillOpacity: 0.4,
-        strokeWeight: 1,
-        strokeColor: '#475569'
-      });
-      map.data.addListener('click', (event) => {
-        const ward = event.feature.getProperty('ward');
-        if (onSelectWard && ward) onSelectWard(ward);
-      });
-    }
-  }, [map, geoData, onSelectWard]);
+  const html = `
+    <div class="custom-leaflet-marker ${isSelected ? 'selected' : ''}" style="width: ${size}px; height: ${size}px; position: relative; cursor: pointer;">
+      ${isCritical ? `<div class="marker-pulse" style="background: ${color};"></div>` : ''}
+      <div class="marker-core" style="
+        background: ${color}; 
+        box-shadow: 0 0 ${isSelected ? '14px' : '8px'} ${glowColor}, 0 2px 6px rgba(0,0,0,0.6);
+        border: ${isSelected ? '3px solid #ffffff' : '2px solid #0f172a'};
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: ${size > 28 ? '11px' : '9px'};
+        font-family: monospace;
+        transition: transform 0.2s ease;
+      ">
+        ${cluster.complaint_count || '1'}
+      </div>
+    </div>
+  `;
 
-  // Manage Markers
-  useEffect(() => {
-    if (!map) return;
-
-    // Clear existing markers
-    markersRef.current.forEach(m => m.setMap(null));
-    markersRef.current = [];
-
-    const getPinColor = (cluster) => {
-      const isCritical = cluster.urgency === 'critical' || cluster.issue_type === 'water' || cluster.issue_type === 'health';
-      if (isCritical) return '#ef4444'; // bg-urgent-red
-      if (cluster.priority_score > 0.4) return '#f97316'; // bg-warning-orange
-      return '#3b82f6'; // bg-need-blue
-    };
-
-    const getPinPosition = (cluster) => {
-      if (cluster.location?.lat && cluster.location?.lng) {
-        return { lat: cluster.location.lat, lng: cluster.location.lng };
-      }
-      
-      // Fallback coordinates based on the synthetic GeoJSON we created
-      if (cluster.ward === 'Ward 3' || cluster.id?.includes('W3')) {
-        if (cluster.issue_type === 'road') return { lat: 28.612, lng: 77.212 };
-        if (cluster.issue_type === 'education') return { lat: 28.614, lng: 77.214 };
-        return { lat: 28.611, lng: 77.213 };
-      }
-      if (cluster.ward === 'Ward 7' || cluster.id?.includes('W7')) {
-        if (cluster.issue_type === 'water') return { lat: 28.616, lng: 77.216 };
-        return { lat: 28.618, lng: 77.218 };
-      }
-      if (cluster.issue_type === 'health') return { lat: 28.602, lng: 77.202 };
-      if (cluster.issue_type === 'water') return { lat: 28.604, lng: 77.204 };
-      return { lat: 28.603, lng: 77.201 };
-    };
-
-    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    let hasPoints = false;
-
-    clusters.forEach(cluster => {
-      const position = getPinPosition(cluster);
-      const isSelected = selectedCluster?.id === cluster.id;
-      const isHovered = hoveredCluster?.id === cluster.id;
-      const color = getPinColor(cluster);
-
-      minLat = Math.min(minLat, position.lat);
-      maxLat = Math.max(maxLat, position.lat);
-      minLng = Math.min(minLng, position.lng);
-      maxLng = Math.max(maxLng, position.lng);
-      hasPoints = true;
-
-      // Create an SVG icon
-      const size = isSelected || isHovered ? 20 : 12;
-      const svgMarker = {
-        path: window.google.maps.SymbolPath.CIRCLE,
-        fillColor: color,
-        fillOpacity: 0.9,
-        strokeWeight: isSelected ? 3 : 1,
-        strokeColor: '#0f172a',
-        scale: size / 2, // scale is radius
-      };
-
-      const marker = new window.google.maps.Marker({
-        position,
-        map,
-        icon: svgMarker,
-        title: `${cluster.ward} - ${cluster.issue_type}`,
-      });
-
-      marker.addListener('click', () => {
-        if (onSelectCluster) onSelectCluster(cluster);
-      });
-
-      markersRef.current.push(marker);
-    });
-
-    if (hasPoints && clusters.length > 0) {
-      if (minLat === maxLat && minLng === maxLng) {
-        map.panTo({ lat: minLat, lng: minLng });
-      } else {
-        const bounds = new window.google.maps.LatLngBounds(
-          { lat: minLat - 0.01, lng: minLng - 0.01 },
-          { lat: maxLat + 0.01, lng: maxLng + 0.01 }
-        );
-        map.fitBounds(bounds);
-      }
-    }
-  }, [map, clusters, selectedCluster, hoveredCluster, onSelectCluster]);
-
-  return <div ref={mapRef} style={{ width: '100%', height: '100%' }} />;
+  return L.divIcon({
+    html,
+    className: 'custom-div-icon',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2 - 4]
+  });
 }
 
-export default function MapPanel({ clusters, selectedCluster, hoveredCluster, onSelectCluster, onSelectWard }) {
+export default function MapPanel({
+  clusters = [],
+  selectedCluster,
+  hoveredCluster,
+  onSelectCluster,
+  onSelectWard,
+  currentConstituency = 'varanasi'
+}) {
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersLayerRef = useRef(null);
+  const geoJsonLayerRef = useRef(null);
+  const selectedMarkerRef = useRef(null);
+
+  const [viewMode, setViewMode] = useState('map'); // 'map' | 'grid'
   const [geoData, setGeoData] = useState(null);
-  
-  // Geocode missing coordinates using our new backend endpoint
+  const [mapLoaded, setMapLoaded] = useState(false);
+
+  const constituencyConfig = CONSTITUENCY_CENTERS[currentConstituency.toLowerCase()] || CONSTITUENCY_CENTERS.varanasi;
+  const wardMap = currentConstituency.toLowerCase() === 'lucknow' ? LUCKNOW_WARD_CENTROIDS : VARANASI_WARD_CENTROIDS;
+
+  // 1. Load GeoJSON ward boundaries
   useEffect(() => {
-    const geocodeMissing = async () => {
-      for (const cluster of clusters) {
-        if (!cluster.location?.lat || !cluster.location?.lng) {
-          try {
-            const res = await fetch(`/api/geocode-ward?ward=${encodeURIComponent(cluster.ward)}`);
-            const data = await res.json();
-            if (data.lat && data.lng) {
-              if (!cluster.location) cluster.location = {};
-              cluster.location.lat = data.lat;
-              cluster.location.lng = data.lng;
-            }
-          } catch (err) {
-            console.error('Failed to geocode', cluster.ward, err);
-          }
-        }
+    const geoFile = currentConstituency.toLowerCase() === 'lucknow'
+      ? '/constituencies/lucknow.geojson'
+      : '/constituencies/varanasi.geojson';
+
+    fetch(geoFile)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => setGeoData(data))
+      .catch(err => {
+        console.warn("Falling back to wards.geojson:", err.message);
+        fetch('/wards.geojson')
+          .then(r => r.json())
+          .then(d => setGeoData(d))
+          .catch(e => console.error("Error loading fallback geojson:", e));
+      });
+  }, [currentConstituency]);
+
+  // 2. Initialize Leaflet Map Instance
+  useEffect(() => {
+    if (!mapContainerRef.current || viewMode !== 'map') return;
+
+    if (!mapInstanceRef.current) {
+      const map = L.map(mapContainerRef.current, {
+        center: [constituencyConfig.lat, constituencyConfig.lng],
+        zoom: constituencyConfig.zoom,
+        minZoom: 10,
+        maxZoom: 18,
+        zoomControl: false,
+        attributionControl: false
+      });
+
+      // CartoDB Dark Matter tiles (100% free, no API key, dark command-center aesthetic)
+      const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19
+      });
+
+      tileLayer.addTo(map);
+
+      // Add zoom control at bottom-right
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      // Layer groups
+      geoJsonLayerRef.current = L.layerGroup().addTo(map);
+      markersLayerRef.current = L.layerGroup().addTo(map);
+
+      mapInstanceRef.current = map;
+      setMapLoaded(true);
+
+      // Invalidate size to ensure container renders correctly
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 150);
+    }
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        markersLayerRef.current = null;
+        geoJsonLayerRef.current = null;
+        setMapLoaded(false);
       }
     };
-    if (clusters.length > 0) {
-      geocodeMissing();
-    }
-  }, [clusters]);
+  }, [viewMode, constituencyConfig]);
 
+  // 3. Pan to constituency center on constituency change
   useEffect(() => {
-    fetch('/wards.geojson')
-      .then((res) => res.json())
-      .then((data) => setGeoData(data))
-      .catch((err) => console.error("Failed to load wards GeoJSON", err));
-  }, []);
-
-  const apiKey = import.meta.env.VITE_MAPS_API_KEY || import.meta.env.GOOGLE_MAPS_API_KEY;
-
-  if (!apiKey || apiKey.includes('YOUR_')) {
-    return (
-      <div className="relative w-full h-full min-h-[300px] bg-slate-950 overflow-hidden flex flex-col items-center justify-center p-6 text-center text-slate-400">
-        <svg className="w-16 h-16 mb-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p className="font-semibold text-lg mb-2">// MOCK: Google Maps Placeholder</p>
-        <p className="text-sm max-w-sm">Provide VITE_MAPS_API_KEY in .env to enable the interactive map.</p>
-        <div className="mt-6 w-full max-w-md text-left bg-slate-900 p-4 rounded-lg border border-slate-800">
-          <h4 className="text-xs uppercase text-slate-500 mb-2">Ward Data Summary</h4>
-          <ul className="text-sm space-y-1">
-            {clusters.map(c => (
-              <li key={c.id} className="flex justify-between border-b border-slate-800/50 pb-1">
-                <span>{c.ward}</span>
-                <span className={c.urgency === 'critical' ? 'text-red-400' : 'text-blue-400'}>
-                  {c.issue_type}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
+    if (!mapInstanceRef.current) return;
+    mapInstanceRef.current.flyTo(
+      [constituencyConfig.lat, constituencyConfig.lng],
+      constituencyConfig.zoom,
+      { duration: 1.0 }
     );
-  }
+  }, [currentConstituency, constituencyConfig]);
+
+  // 4. Render GeoJSON Ward Polygons
+  useEffect(() => {
+    if (!mapInstanceRef.current || !geoJsonLayerRef.current || !geoData) return;
+
+    geoJsonLayerRef.current.clearLayers();
+
+    const geoLayer = L.geoJSON(geoData, {
+      style: (feature) => {
+        const wardId = feature?.properties?.ward;
+        const isWardSelected = selectedCluster && selectedCluster.ward === wardId;
+        return {
+          fillColor: isWardSelected ? '#38bdf8' : '#0284c7',
+          fillOpacity: isWardSelected ? 0.35 : 0.12,
+          color: isWardSelected ? '#38bdf8' : '#0ea5e9',
+          weight: isWardSelected ? 2.5 : 1.2,
+          dashArray: isWardSelected ? null : '3, 4',
+          opacity: 0.85
+        };
+      },
+      onEachFeature: (feature, layer) => {
+        const wardId = feature?.properties?.ward || 'Ward';
+        const wardName = feature?.properties?.ward_name || feature?.properties?.name || wardId;
+        const pop = feature?.properties?.population ? Number(feature.properties.population).toLocaleString() : null;
+
+        // Custom tooltip
+        layer.bindTooltip(
+          `<div class="text-[11px] font-mono">
+            <strong>${wardId}</strong>: ${wardName}
+            ${pop ? `<br/><span class="text-slate-400">Pop: ${pop}</span>` : ''}
+           </div>`,
+          { className: 'leaflet-dark-tooltip', sticky: true }
+        );
+
+        layer.on({
+          mouseover: (e) => {
+            const l = e.target;
+            l.setStyle({
+              fillOpacity: 0.3,
+              weight: 2,
+              color: '#38bdf8'
+            });
+          },
+          mouseout: (e) => {
+            geoLayer.resetStyle(e.target);
+          },
+          click: () => {
+            if (onSelectWard && wardId) onSelectWard(wardId);
+            const matchingCluster = clusters.find(c => c.ward === wardId);
+            if (matchingCluster && onSelectCluster) {
+              onSelectCluster(matchingCluster);
+            }
+          }
+        });
+      }
+    });
+
+    geoJsonLayerRef.current.addLayer(geoLayer);
+  }, [geoData, clusters, selectedCluster, onSelectWard, onSelectCluster, mapLoaded]);
+
+  // 5. Render Cluster Markers
+  useEffect(() => {
+    if (!mapInstanceRef.current || !markersLayerRef.current) return;
+
+    markersLayerRef.current.clearLayers();
+    selectedMarkerRef.current = null;
+
+    clusters.forEach((cluster) => {
+      // Resolve position from location or ward centroid
+      let lat = cluster.location?.lat;
+      let lng = cluster.location?.lng;
+
+      if (!lat || !lng || lat > 28 || lat < 24) {
+        const wardInfo = wardMap[cluster.ward] || wardMap[Object.keys(wardMap)[0]];
+        if (wardInfo) {
+          const jitterLat = (Math.abs(cluster.id?.charCodeAt(3) || 0) % 5) * 0.002 - 0.004;
+          const jitterLng = (Math.abs(cluster.id?.charCodeAt(5) || 0) % 5) * 0.002 - 0.004;
+          lat = wardInfo.lat + jitterLat;
+          lng = wardInfo.lng + jitterLng;
+        } else {
+          lat = constituencyConfig.lat;
+          lng = constituencyConfig.lng;
+        }
+      }
+
+      const isSelected = selectedCluster?.id === cluster.id;
+      const isHovered = hoveredCluster?.id === cluster.id;
+      const icon = createClusterIcon(cluster, isSelected, isHovered);
+
+      const marker = L.marker([lat, lng], { icon });
+
+      // Popup content with dark theme styling
+      const costLakhs = cluster.estimated_cost_inr ? (cluster.estimated_cost_inr / 100000).toFixed(1) : "N/A";
+      const score = cluster.priority_score ? cluster.priority_score.toFixed(3) : "0.000";
+      const pop = cluster.affected_population ? Number(cluster.affected_population).toLocaleString() : "N/A";
+      const isUrgent = cluster.urgency === 'critical' || cluster.priority_score > 0.5;
+
+      const popupHtml = `
+        <div class="leaflet-popup-card">
+          <div class="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-700">
+            <span class="text-[10px] uppercase tracking-wider font-bold text-slate-400 font-mono">${cluster.ward || 'Constituency'}</span>
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded font-mono ${isUrgent ? 'bg-red-500/20 text-red-400' : 'bg-sky-500/20 text-sky-400'}">
+              SCORE: ${score}
+            </span>
+          </div>
+          <h4 class="text-xs font-bold text-white capitalize mb-1 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full ${isUrgent ? 'bg-red-500' : 'bg-sky-400'}"></span>
+            ${cluster.issue_type} Deficit
+          </h4>
+          <p class="text-[11px] text-slate-300 mb-2 leading-relaxed line-clamp-2">
+            ${cluster.description || 'Civic infrastructure upgrade project'}
+          </p>
+          <div class="grid grid-cols-2 gap-1.5 mb-2.5 text-[10px] bg-slate-900/80 p-1.5 rounded border border-slate-800">
+            <div>
+              <span class="text-slate-400 block font-mono">Affected</span>
+              <strong class="text-slate-200">${pop}</strong>
+            </div>
+            <div>
+              <span class="text-slate-400 block font-mono">Est. Cost</span>
+              <strong class="text-emerald-400">₹${costLakhs}L</strong>
+            </div>
+          </div>
+          <button 
+            id="btn-inspect-${cluster.id}" 
+            class="w-full py-1.5 px-2 bg-sky-600 hover:bg-sky-500 text-white rounded text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+          >
+            Inspect Project Docket &rarr;
+          </button>
+        </div>
+      `;
+
+      marker.bindPopup(popupHtml, {
+        className: 'leaflet-dark-popup',
+        maxWidth: 260
+      });
+
+      marker.on('click', () => {
+        if (onSelectCluster) onSelectCluster(cluster);
+        if (onSelectWard && cluster.ward) onSelectWard(cluster.ward);
+      });
+
+      marker.on('popupopen', () => {
+        const btn = document.getElementById(`btn-inspect-${cluster.id}`);
+        if (btn) {
+          btn.onclick = () => {
+            if (onSelectCluster) onSelectCluster(cluster);
+            marker.closePopup();
+          };
+        }
+      });
+
+      if (isSelected) {
+        selectedMarkerRef.current = marker;
+      }
+
+      markersLayerRef.current.addLayer(marker);
+    });
+
+    // Fly to selected cluster if changed
+    if (selectedCluster && mapInstanceRef.current) {
+      let sLat = selectedCluster.location?.lat;
+      let sLng = selectedCluster.location?.lng;
+      if (!sLat || !sLng) {
+        const info = wardMap[selectedCluster.ward] || constituencyConfig;
+        sLat = info.lat;
+        sLng = info.lng;
+      }
+      mapInstanceRef.current.flyTo([sLat, sLng], 14, { duration: 0.8 });
+    }
+  }, [clusters, selectedCluster, hoveredCluster, constituencyConfig, wardMap, onSelectCluster, onSelectWard, mapLoaded]);
+
+  // Reset map view to constituency bounds
+  const handleResetView = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo(
+        [constituencyConfig.lat, constituencyConfig.lng],
+        constituencyConfig.zoom,
+        { duration: 0.6 }
+      );
+    }
+  };
 
   return (
-    <div className="relative w-full h-full min-h-[300px] bg-slate-950 overflow-hidden flex flex-col z-0">
-      <Wrapper apiKey={apiKey} libraries={["places"]}>
-        <GoogleMapInner 
-          clusters={clusters} 
-          selectedCluster={selectedCluster} 
-          hoveredCluster={hoveredCluster}
-          onSelectCluster={onSelectCluster}
-          onSelectWard={onSelectWard}
-          geoData={geoData}
-        />
-      </Wrapper>
+    <div className="relative w-full h-full min-h-[350px] bg-slate-950 overflow-hidden flex flex-col rounded-xl border border-slate-800">
+      {/* Map Control Header */}
+      <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-900/90 border-b border-slate-800 backdrop-blur-xs z-10">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span className="text-xs font-mono uppercase tracking-wider text-slate-200 font-bold">
+            {constituencyConfig.name} GIS INTELLIGENCE
+          </span>
+          <span className="text-[10px] font-mono text-slate-400 hidden sm:inline-block bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50">
+            OpenStreetMap / Leaflet
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {viewMode === 'map' && (
+            <button
+              onClick={handleResetView}
+              title="Reset Map View"
+              className="text-[11px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
+            >
+              Reset View
+            </button>
+          )}
+
+          <button
+            onClick={() => setViewMode(viewMode === 'map' ? 'grid' : 'map')}
+            className={`text-[11px] font-mono px-2.5 py-1 rounded border transition-colors cursor-pointer ${
+              viewMode === 'grid'
+                ? 'bg-sky-600 text-white border-sky-500'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            {viewMode === 'map' ? 'Ward Grid' : 'Map Canvas'}
+          </button>
+        </div>
+      </div>
+
+      {/* Map Canvas / Grid Container */}
+      <div className="flex-1 relative w-full h-full min-h-[300px] overflow-hidden">
+        {viewMode === 'map' ? (
+          <div ref={mapContainerRef} className="w-full h-full min-h-[300px] z-0" />
+        ) : (
+          /* Ward Grid Overview */
+          <div className="p-3.5 overflow-y-auto h-full bg-slate-950">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+              {Object.entries(wardMap).map(([wardId, info]) => {
+                const wardClusters = clusters.filter(c => c.ward === wardId);
+                const hasCritical = wardClusters.some(c => c.urgency === 'critical' || c.priority_score > 0.6);
+                const isSelected = selectedCluster && selectedCluster.ward === wardId;
+
+                return (
+                  <button
+                    key={wardId}
+                    onClick={() => {
+                      if (onSelectWard) onSelectWard(wardId);
+                      if (wardClusters.length > 0 && onSelectCluster) onSelectCluster(wardClusters[0]);
+                    }}
+                    className={`p-3 rounded-lg border text-left transition-all relative cursor-pointer ${
+                      isSelected
+                        ? 'bg-sky-950/90 border-sky-400 shadow-lg shadow-sky-900/30'
+                        : hasCritical
+                        ? 'bg-red-950/20 border-red-900/60 hover:border-red-600'
+                        : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-white">{wardId}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                        hasCritical ? 'bg-red-500/20 text-red-400 font-bold' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {wardClusters.length} {wardClusters.length === 1 ? 'cluster' : 'clusters'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 truncate mb-1.5">{info.name || wardId}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {wardClusters.map(c => (
+                        <span
+                          key={c.id}
+                          className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-mono ${
+                            c.issue_type === 'water' ? 'bg-blue-900/60 text-blue-300' :
+                            c.issue_type === 'health' ? 'bg-emerald-900/60 text-emerald-300' :
+                            c.issue_type === 'road' ? 'bg-amber-900/60 text-amber-300' :
+                            'bg-purple-900/60 text-purple-300'
+                          }`}
+                        >
+                          {c.issue_type}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Map Legend (when in map view) */}
+        {viewMode === 'map' && (
+          <div className="absolute bottom-3 left-3 z-[400] bg-slate-900/90 border border-slate-800 rounded-lg p-2.5 backdrop-blur-xs shadow-lg text-[10px] font-mono text-slate-300 flex flex-col gap-1.5 pointer-events-auto">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-1">
+              GIS Cluster Severity
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+              <span>Critical Need (&gt;0.6)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+              <span>Moderate Priority</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+              <span>Standard Baseline</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Embedded CSS for custom Leaflet markers, pulse effect, and popups */}
+      <style>{`
+        .custom-div-icon {
+          background: transparent !important;
+          border: none !important;
+        }
+        .marker-pulse {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          opacity: 0.6;
+          animation: markerPulseAnimation 1.8s infinite ease-out;
+        }
+        @keyframes markerPulseAnimation {
+          0% { transform: scale(1); opacity: 0.8; }
+          100% { transform: scale(2.2); opacity: 0; }
+        }
+        .custom-leaflet-marker.selected .marker-core {
+          transform: scale(1.15);
+        }
+        .leaflet-dark-popup .leaflet-popup-content-wrapper {
+          background: #0f172a !important;
+          color: #f8fafc !important;
+          border: 1px solid #334155 !important;
+          border-radius: 10px !important;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7) !important;
+          padding: 2px !important;
+        }
+        .leaflet-dark-popup .leaflet-popup-tip {
+          background: #0f172a !important;
+          border: 1px solid #334155 !important;
+        }
+        .leaflet-dark-popup .leaflet-popup-close-button {
+          color: #94a3b8 !important;
+          padding: 6px !important;
+        }
+        .leaflet-dark-popup .leaflet-popup-close-button:hover {
+          color: #ffffff !important;
+        }
+        .leaflet-dark-tooltip {
+          background: #0f172a !important;
+          border: 1px solid #334155 !important;
+          color: #f8fafc !important;
+          border-radius: 6px !important;
+          padding: 4px 8px !important;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+        }
+        .leaflet-dark-tooltip::before {
+          border-top-color: #0f172a !important;
+        }
+      `}</style>
     </div>
   );
 }

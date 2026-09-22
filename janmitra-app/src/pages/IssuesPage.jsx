@@ -1,25 +1,69 @@
 import React, { useState, useMemo } from 'react';
 import { computeRankings } from '../scoring/priorityEngine';
+import Badge from '../components/Badge';
+import EmptyState from '../components/EmptyState';
+import { 
+  IconSearch, 
+  IconChevronRight, 
+  IconCheckCircle,
+  IconPortfolio,
+  SectorIcon 
+} from '../utils/icons';
 
 export default function IssuesPage({ clusters, selectedCluster, setSelectedCluster, onNavigateToPortfolio }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'clusters' | 'trend'
+  const [sectorFilter, setSectorFilter] = useState('all'); // 'all' | 'water' | 'road' | 'health' | 'education'
+  const [urgencyTab, setUrgencyTab] = useState('all'); // 'all' | 'critical'
 
   // Pre-calculate ranked issues
   const rankedClusters = useMemo(() => {
     return computeRankings(clusters);
   }, [clusters]);
 
-  // Handle Search Filtering (by issue_type, ward, or public_evidence)
+  // Sector filter buttons
+  const SECTORS = [
+    { id: 'all', label: 'All Sectors' },
+    { id: 'water', label: 'Water' },
+    { id: 'road', label: 'Roads' },
+    { id: 'health', label: 'Healthcare' },
+    { id: 'education', label: 'Education' }
+  ];
+
+  const getIssueTitle = (cluster) => {
+    if (cluster.description) return cluster.description;
+    const titles = {
+      water: 'Water Supply & Pipeline Fault',
+      road: 'Road Resurfacing & Potholes',
+      health: 'Primary Health Clinic Infrastructure',
+      education: 'School Sanitation & Desks',
+      sanitation: 'Drain Desilting & Waste Clear',
+      electricity: 'Streetlight Feeder Maintenance'
+    };
+    return titles[cluster.issue_type] || `${cluster.issue_type} Maintenance`;
+  };
+
+  // Handle Search and Sector/Urgency Filtering
   const filteredClusters = useMemo(() => {
-    if (!searchQuery.trim()) return rankedClusters;
-    const lower = searchQuery.toLowerCase();
-    return rankedClusters.filter(c => 
-      c.issue_type.toLowerCase().includes(lower) ||
-      c.ward.toLowerCase().includes(lower) ||
-      (c.public_evidence || []).some(evidence => evidence.toLowerCase().includes(lower))
-    );
-  }, [rankedClusters, searchQuery]);
+    return rankedClusters.filter(c => {
+      // Urgency tab check
+      if (urgencyTab === 'critical' && c.urgency !== 'critical') {
+        return false;
+      }
+      // Sector filter check
+      if (sectorFilter !== 'all' && c.issue_type.toLowerCase() !== sectorFilter) {
+        return false;
+      }
+      // Search query check
+      if (!searchQuery.trim()) return true;
+      const lower = searchQuery.toLowerCase();
+      return (
+        c.issue_type.toLowerCase().includes(lower) ||
+        c.ward.toLowerCase().includes(lower) ||
+        (c.description || '').toLowerCase().includes(lower) ||
+        (c.public_evidence || []).some(evidence => evidence.toLowerCase().includes(lower))
+      );
+    });
+  }, [rankedClusters, searchQuery, sectorFilter, urgencyTab]);
 
   // Set initial selected cluster if none selected
   const activeCluster = useMemo(() => {
@@ -32,65 +76,94 @@ export default function IssuesPage({ clusters, selectedCluster, setSelectedClust
   const formatCostLakhs = (val) => `₹${(val / 100000).toFixed(1)}L`;
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto pb-24 md:pb-6">
+    <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto pb-24 md:pb-8">
       {/* Top Header Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-gray pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-[22px] font-bold text-slate-800 tracking-tight">Issues & Clusters</h1>
-          <p className="text-[13px] text-neutral-gray mt-0.5">Aggregated citizen complaints grouped into actionable development priorities.</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">Issues & Clusters</h1>
+          <p className="text-xs md:text-sm text-slate-500 mt-0.5">
+            Aggregated citizen complaints grouped into actionable development priorities.
+          </p>
         </div>
         
-        {/* Navigation Tabs & Actions */}
+        {/* Navigation Actions */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => onNavigateToPortfolio()}
-            className="bg-need-blue hover:bg-blue-700 text-white text-[12px] font-bold px-4 py-2 rounded-lg transition-colors shadow-sm"
+            type="button"
+            className="btn-primary flex items-center gap-2 bg-need-blue hover:bg-need-blue-dark text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors shadow-2xs cursor-pointer"
           >
-            Open Planner
+            <IconPortfolio className="w-4 h-4" />
+            <span>Open Planner</span>
           </button>
         </div>
       </div>
 
       {/* Search and Filters Strip */}
-      <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-4 border border-border-gray rounded-xl shadow-sm">
-        {/* Search Input */}
-        <div className="relative w-full sm:max-w-xs flex-1">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by issue type, ward..."
-            className="w-full pl-8 pr-4 py-2 border border-border-gray rounded-lg text-[13px] focus:outline-none focus:ring-1 focus:ring-need-blue focus:border-need-blue bg-slate-50"
-          />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray text-[14px]">🔍</span>
+      <div className="space-y-3 bg-white p-4 border border-slate-200/90 rounded-xl shadow-2xs">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          {/* Search Input with accessible label */}
+          <div className="relative w-full sm:max-w-md flex-1">
+            <input
+              type="text"
+              aria-label="Search issues by ward, sector, or keyword"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by sector, ward name, or grievance..."
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-need-blue focus:border-need-blue bg-slate-50/70"
+            />
+            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+          </div>
+
+          {/* Functional View Tab Controls */}
+          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200/80 w-full sm:w-auto" role="tablist">
+            <button
+              onClick={() => setUrgencyTab('all')}
+              role="tab"
+              aria-selected={urgencyTab === 'all'}
+              type="button"
+              className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                urgencyTab === 'all' ? 'bg-white text-slate-900 font-semibold shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              All Issues ({rankedClusters.length})
+            </button>
+            <button
+              onClick={() => setUrgencyTab('critical')}
+              role="tab"
+              aria-selected={urgencyTab === 'critical'}
+              type="button"
+              className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                urgencyTab === 'critical' ? 'bg-white text-urgent-red font-semibold shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Critical Only
+            </button>
+          </div>
         </div>
 
-        {/* Tab Controls */}
-        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-3 py-1.5 text-[12px] font-semibold rounded-md transition-all ${
-              activeTab === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-neutral-gray hover:text-slate-800'
-            }`}
-          >
-            All Issues
-          </button>
-          <button
-            onClick={() => setActiveTab('clusters')}
-            className={`px-3 py-1.5 text-[12px] font-semibold rounded-md transition-all ${
-              activeTab === 'clusters' ? 'bg-white text-slate-800 shadow-sm' : 'text-neutral-gray hover:text-slate-800'
-            }`}
-          >
-            Clusters ({filteredClusters.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('trend')}
-            className={`px-3 py-1.5 text-[12px] font-semibold rounded-md transition-all ${
-              activeTab === 'trend' ? 'bg-white text-slate-800 shadow-sm' : 'text-neutral-gray hover:text-slate-800'
-            }`}
-          >
-            Trends
-          </button>
+        {/* Sector Filter Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-0.5">
+          <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider flex-shrink-0 mr-1">
+            Sector:
+          </span>
+          {SECTORS.map(s => {
+            const isSelected = sectorFilter === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setSectorFilter(s.id)}
+                type="button"
+                className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors flex-shrink-0 cursor-pointer ${
+                  isSelected 
+                    ? 'bg-slate-900 text-white shadow-2xs' 
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {s.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -98,148 +171,157 @@ export default function IssuesPage({ clusters, selectedCluster, setSelectedClust
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Left Panel: Ranked Issues List */}
-        <div className="lg:col-span-5 bg-white border border-border-gray rounded-xl p-5 shadow-sm space-y-4">
-          <h2 className="text-[14px] font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
-            Priority Docket List
-          </h2>
+        <div className="lg:col-span-5 bg-white border border-slate-200/90 rounded-xl p-4 md:p-5 shadow-2xs space-y-3">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              Prioritized Issues
+            </h2>
+            <span className="text-xs font-mono text-slate-500 tabular-nums">
+              Showing {filteredClusters.length} items
+            </span>
+          </div>
 
-          <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
             {filteredClusters.map((cluster) => {
               const isSelected = activeCluster?.id === cluster.id;
-              const isCritical = cluster.urgency === 'critical' || cluster.issue_type === 'water' || cluster.issue_type === 'health';
+              const isCritical = cluster.urgency === 'critical' || (cluster.priority_score && cluster.priority_score > 0.55);
+
               return (
                 <button
                   key={cluster.id}
                   onClick={() => setSelectedCluster(cluster)}
-                  className={`w-full flex items-center justify-between p-3.5 rounded-lg border text-left transition-all ${
+                  type="button"
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all cursor-pointer ${
                     isSelected
-                      ? 'border-need-blue bg-blue-50/20 shadow-sm'
-                      : 'border-slate-100 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50'
+                      ? 'border-need-blue bg-blue-50/50 shadow-2xs ring-1 ring-blue-500/20'
+                      : isCritical
+                      ? 'border-red-200/90 bg-red-50/30 hover:bg-red-50/60'
+                      : 'border-slate-200/80 hover:border-slate-300 bg-slate-50/40 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">
-                      {cluster.issue_type === 'water' ? '🚰' :
-                       cluster.issue_type === 'road' ? '🛣️' :
-                       cluster.issue_type === 'health' ? '🏥' : '🏫'}
-                    </span>
-                    <div>
-                      <h3 className="text-[13px] font-bold text-slate-800 capitalize leading-tight">
-                        {cluster.issue_type} shortage
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-700 flex-shrink-0 shadow-2xs">
+                      <SectorIcon type={cluster.issue_type} className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-xs font-bold text-slate-900 leading-tight truncate">
+                        {getIssueTitle(cluster)}
                       </h3>
-                      <span className="text-[11px] text-neutral-gray block mt-1 font-mono">
-                        {cluster.ward} · {cluster.complaint_count} complaints
+                      <span className="text-xs text-slate-500 block mt-0.5 truncate">
+                        {cluster.ward} · {cluster.complaint_count || 0} reports
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <span className="text-[13px] font-bold text-slate-800 font-mono">
-                        {cluster.priority_score ? cluster.priority_score.toFixed(2) : '0.00'}
-                      </span>
-                      <span className="text-[9px] text-neutral-gray block mt-0.5 font-mono">Need Score</span>
-                    </div>
-                    <span className="text-neutral-gray text-[12px] opacity-75">➔</span>
+                  <div className="flex items-center gap-2 pl-2 flex-shrink-0">
+                    <Badge variant={isCritical ? "critical" : "warning"} size="sm" dot>
+                      {cluster.priority_score ? cluster.priority_score.toFixed(2) : '0.00'}
+                    </Badge>
+                    <IconChevronRight className="text-slate-400 w-3.5 h-3.5" />
                   </div>
                 </button>
               );
             })}
 
             {filteredClusters.length === 0 && (
-              <div className="text-center py-12 text-[12px] text-neutral-gray font-mono">
-                No matching priority clusters.
-              </div>
+              <EmptyState 
+                title="No matching issues"
+                description="Try clearing your search query or switching the sector filter."
+                actionLabel="Reset Filters"
+                onAction={() => { setSearchQuery(''); setSectorFilter('all'); setUrgencyTab('all'); }}
+              />
             )}
           </div>
         </div>
 
         {/* Right Panel: Selected Issue Detail */}
-        <div className="lg:col-span-7 space-y-6">
+        <div className="lg:col-span-7 space-y-4">
           {activeCluster ? (
             <>
               {/* Detailed Summary Card */}
-              <div className="bg-white border border-border-gray rounded-xl p-6 shadow-sm space-y-5">
+              <div className="bg-white border border-slate-200/90 rounded-xl p-5 md:p-6 shadow-2xs space-y-5">
                 <div className="flex justify-between items-start border-b border-slate-100 pb-4">
                   <div className="flex items-center gap-3.5">
-                    <span className="text-3xl">
-                      {activeCluster.issue_type === 'water' ? '🚰' :
-                       activeCluster.issue_type === 'road' ? '🛣️' :
-                       activeCluster.issue_type === 'health' ? '🏥' : '🏫'}
-                    </span>
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-800 shadow-2xs">
+                      <SectorIcon type={activeCluster.issue_type} className="w-5 h-5" />
+                    </div>
                     <div>
-                      <h2 className="text-[18px] font-bold text-slate-850 capitalize leading-tight">
-                        {activeCluster.issue_type} Infrastructure Cluster
+                      <h2 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
+                        {getIssueTitle(activeCluster)}
                       </h2>
-                      <p className="text-[11px] font-mono text-neutral-gray mt-1">ID: {activeCluster.id}</p>
+                      <p className="text-xs font-mono text-slate-500 mt-0.5">Issue ID: {activeCluster.id}</p>
                     </div>
                   </div>
-                  <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded tracking-wide ${
-                    activeCluster.urgency === 'critical' || activeCluster.issue_type === 'water' || activeCluster.issue_type === 'health'
-                      ? 'bg-urgent-red/10 text-urgent-red border border-urgent-red/20'
-                      : 'bg-warning-orange/10 text-warning-orange border border-warning-orange/20'
-                  }`}>
-                    {activeCluster.urgency === 'critical' || activeCluster.issue_type === 'water' || activeCluster.issue_type === 'health' ? 'CRITICAL' : 'MODERATE'}
-                  </span>
+                  <Badge 
+                    variant={activeCluster.urgency === 'critical' ? 'critical' : 'warning'} 
+                    size="md" 
+                    dot
+                  >
+                    {activeCluster.urgency === 'critical' ? 'CRITICAL' : 'MODERATE'}
+                  </Badge>
                 </div>
 
                 {/* Primary Metric Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200">
                   <div>
-                    <span className="text-[10px] text-neutral-gray uppercase tracking-wider block font-semibold mb-1">Ward Location</span>
-                    <span className="text-[13px] font-bold text-slate-800">{activeCluster.ward}</span>
+                    <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">Ward</span>
+                    <span className="text-xs font-bold text-slate-800">{activeCluster.ward}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-neutral-gray uppercase tracking-wider block font-semibold mb-1">Complaints Logged</span>
-                    <span className="text-[13px] font-bold text-slate-800">{activeCluster.complaint_count} cases</span>
+                    <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">Grievances</span>
+                    <span className="text-xs font-bold text-slate-800 tabular-nums">{activeCluster.complaint_count || 0} reports</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-neutral-gray uppercase tracking-wider block font-semibold mb-1">People Impacted</span>
-                    <span className="text-[13px] font-bold text-slate-800">{activeCluster.affected_population?.toLocaleString()}</span>
+                    <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">Population</span>
+                    <span className="text-xs font-bold text-slate-800 tabular-nums">{activeCluster.affected_population ? activeCluster.affected_population.toLocaleString() : 'Ward-wide'}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-neutral-gray uppercase tracking-wider block font-semibold mb-1">Estimated Cost</span>
-                    <span className="text-[13px] font-bold text-need-blue">{formatCostLakhs(activeCluster.estimated_cost_inr)}</span>
+                    <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">Estimated Cost</span>
+                    <span className="text-xs font-bold font-mono text-need-blue tabular-nums">{formatCostLakhs(activeCluster.estimated_cost_inr)}</span>
                   </div>
                 </div>
 
-                {/* Additional Evidence / Specific Details */}
-                <div className="space-y-3">
-                  <h3 className="text-[12px] font-bold text-slate-800 uppercase tracking-wider">Verifiable Evidence Log</h3>
+                {/* Citizen Reports / Specific Details */}
+                <div className="space-y-2.5">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Citizen Reports & Evidence</h3>
                   <ul className="space-y-2">
                     {(activeCluster.public_evidence || []).map((evidence, idx) => (
-                      <li key={idx} className="flex items-start gap-2 text-[12px] text-slate-700 bg-slate-50/50 p-3 rounded-lg border border-slate-100">
-                        <span className="text-evidence-teal mt-0.5">✓</span>
-                        <span>{evidence}</span>
+                      <li key={idx} className="flex items-start gap-2.5 text-xs text-slate-700 bg-slate-50/70 p-3 rounded-lg border border-slate-200/80">
+                        <IconCheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                        <span className="leading-relaxed">{evidence}</span>
                       </li>
                     ))}
                     {(activeCluster.public_evidence || []).length === 0 && (
-                      <span className="text-[12px] text-neutral-gray italic">No public logs uploaded. Using telemetry metrics.</span>
+                      <li className="text-xs text-slate-500 italic py-2">
+                        Citizen complaint registered through ward intake without extended text.
+                      </li>
                     )}
                   </ul>
                 </div>
               </div>
 
-              {/* Lower Section Recommended Action Kicker */}
-              <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              {/* Lower Section Action Kicker */}
+              <div className="bg-blue-50/60 border border-blue-200/80 rounded-xl p-4 md:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h4 className="text-[13px] font-bold text-slate-800 leading-tight">Recommended Resource Action</h4>
-                  <p className="text-[12px] text-neutral-gray mt-1">
-                    Fund pipeline and facility restructuring within {activeCluster.ward} using the planner.
+                  <h4 className="text-xs font-bold text-slate-900 leading-tight">Recommended Action</h4>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Include this priority project in constituency fund allocation for {activeCluster.ward}.
                   </p>
                 </div>
                 <button
                   onClick={() => onNavigateToPortfolio()}
-                  className="bg-need-blue hover:bg-blue-700 text-white font-bold text-[12px] px-4 py-2 rounded-lg transition-all shadow-sm"
+                  type="button"
+                  className="btn-primary bg-need-blue hover:bg-need-blue-dark text-white font-semibold text-xs px-4 py-2.5 rounded-lg transition-all shadow-2xs flex-shrink-0 cursor-pointer"
                 >
                   Allocate in Portfolio
                 </button>
               </div>
             </>
           ) : (
-            <div className="bg-white border border-border-gray rounded-xl p-12 text-center text-neutral-gray font-mono text-[12px]">
-              Select a cluster from the left panel to review telemetry details.
-            </div>
+            <EmptyState
+              title="Select an issue to inspect"
+              description="Click any issue cluster from the list to review details, evidence, and estimated budget."
+            />
           )}
         </div>
 

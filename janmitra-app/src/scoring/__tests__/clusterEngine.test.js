@@ -2,8 +2,7 @@ import assert from 'node:assert';
 import {
   cosineSimilarity,
   formClusters,
-  assignClusterIds,
-  buildSimilarityMatrix
+  assignClusterIds
 } from '../clusterEngine.js';
 
 // Test vectors

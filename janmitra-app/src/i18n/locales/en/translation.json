@@ -3,12 +3,13 @@
     "dashboard.title": "Constituency Operational Kiosk",
     "dashboard.subtitle": "Monitor and manage citizen complaints, allocate budgets, and model impacts.",
     "sidebar.home": "Home",
-    "sidebar.issues": "Issues",
+    "sidebar.analytics": "Analytics & Trends",
+    "sidebar.issues": "Issues & Clusters",
     "sidebar.planner": "Portfolio Planner",
-    "sidebar.simulator": "Simulator",
-    "sidebar.map": "Ward Map",
-    "sidebar.kiosk": "Citizen Kiosk",
-    "sidebar.reports": "Reports",
+    "sidebar.simulator": "Digital Twin CSTE",
+    "sidebar.map": "Ward GIS Map",
+    "sidebar.kiosk": "Citizen Intake",
+    "sidebar.reports": "Executive Reports",
     "sidebar.settings": "Settings"
   }
 }
