@@ -80,21 +80,119 @@ export default function Dashboard({ clusters, onNavigateToPortfolio, onNavigateT
         })
       });
       
-      if (!response.ok) throw new Error('Report service unavailable');
-      
-      const blob = await response.blob();
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `janmitra-briefing-${Date.now()}.pdf`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        setReportStatus({ type: 'success', message: 'Briefing report downloaded successfully.' });
+        setTimeout(() => setReportStatus(null), 4000);
+        return;
+      }
+    } catch {
+      // Backend unavailable; generate high-fidelity client briefing document
+    }
+
+    try {
+      const reportDate = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
+      const projectsRows = fundedClusters.map((c, idx) => `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 10px; font-weight: bold; font-family: monospace;">#${idx + 1}</td>
+          <td style="padding: 10px; font-weight: 600;">${c.ward || 'General'}</td>
+          <td style="padding: 10px; text-transform: capitalize;">${c.issue_type}</td>
+          <td style="padding: 10px; color: #334155;">${c.description || 'Public works infrastructure upgrade'}</td>
+          <td style="padding: 10px; text-align: right; font-weight: bold; color: #047857;">₹${((c.estimated_cost_inr || 0) / 100000).toFixed(1)}L</td>
+          <td style="padding: 10px; text-align: right; font-family: monospace;">${(c.affected_population || 0).toLocaleString()}</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JanMitra AI - Executive Constituency Briefing</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #0f172a; max-width: 900px; margin: auto; line-height: 1.5; }
+    h1 { margin-bottom: 4px; color: #1e3a8a; font-size: 24px; letter-spacing: -0.5px; }
+    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+    .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+    .kpi-label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+    .kpi-value { font-size: 22px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+    th { background: #f1f5f9; padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; }
+    .footer { margin-top: 40px; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; display: flex; justify-content: space-between; }
+    @media print { body { padding: 0; } button { display: none; } }
+  </style>
+</head>
+<body>
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+    <div>
+      <h1>JANMITRA AI - EXECUTIVE CONSTITUENCY BRIEFING</h1>
+      <div class="subtitle">Evidence-based municipal intelligence & capital prioritization • Date: ${reportDate}</div>
+    </div>
+    <button onclick="window.print()" style="padding: 8px 16px; background: #1e3a8a; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">Print / Save as PDF</button>
+  </div>
+  
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Active Grievances</div>
+      <div class="kpi-value">${totalComplaints}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Problem Clusters</div>
+      <div class="kpi-value">${rankedClusters.length}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Approved Capital</div>
+      <div class="kpi-value">₹${(totalAllocatedCost / 100000).toFixed(1)}L</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Citizen Reach</div>
+      <div class="kpi-value">${totalPeopleImpacted.toLocaleString()}</div>
+    </div>
+  </div>
+
+  <h2 style="font-size: 16px; font-weight: 700; margin-top: 24px; color: #1e293b;">Recommended Priority Investment Portfolio (₹${(defaultBudget / 100000).toFixed(0)} Lakhs Cap)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Rank</th>
+        <th>Ward</th>
+        <th>Sector</th>
+        <th>Intervention Scope</th>
+        <th style="text-align: right;">Cost</th>
+        <th style="text-align: right;">Reach</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${projectsRows}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>Generated by JanMitra AI Decision Engine (CIO Formula & 0/1 Knapsack)</span>
+    <span>Confidential Municipal Planning Document</span>
+  </div>
+</body>
+</html>`;
+
+      const blob = new Blob([htmlContent], { type: 'text/html' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `janmitra-briefing-${Date.now()}.pdf`;
+      a.download = `janmitra-briefing-${Date.now()}.html`;
       a.click();
       window.URL.revokeObjectURL(url);
-      setReportStatus({ type: 'success', message: 'Briefing report downloaded successfully.' });
+      setReportStatus({ type: 'success', message: 'Executive Briefing generated & downloaded successfully.' });
       setTimeout(() => setReportStatus(null), 4000);
-    } catch (err) {
-      console.warn("Report generation note:", err.message);
-      setReportStatus({ type: 'error', message: 'PDF server generation is offline. Please verify local server is running.' });
-      setTimeout(() => setReportStatus(null), 5000);
+    } catch (e) {
+      console.warn("Report generation error:", e);
+      setReportStatus({ type: 'error', message: 'Failed to generate briefing document.' });
+      setTimeout(() => setReportStatus(null), 4000);
     } finally {
       setIsGeneratingReport(false);
     }

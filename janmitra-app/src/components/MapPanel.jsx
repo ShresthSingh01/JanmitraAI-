@@ -108,26 +108,12 @@ export default function MapPanel({
         attributionControl: false
       });
 
-      // Primary: CartoDB Dark Matter tiles (100% free, no API key required)
-      const primaryTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
+      // 100% Free OpenStreetMap raster tiles (Zero API key required, Zero watermarks)
+      const primaryTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        className: 'map-tiles-dark',
         maxZoom: 19
       });
-
-      // Automatic fallback to standard OpenStreetMap tiles if Carto experiences any connectivity issue
-      primaryTileLayer.on('tileerror', function() {
-        if (!map._hasOsmFallback) {
-          map._hasOsmFallback = true;
-          console.info("Switched to secondary OpenStreetMap tile fallback.");
-          const osmFallback = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors',
-            maxZoom: 19
-          });
-          osmFallback.addTo(map);
-        }
-      });
-
       primaryTileLayer.addTo(map);
 
       // Add zoom control at bottom-right

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, writeBatch, doc, getDocs } from 'firebase/firestore';
-import { COMPLAINTS, CLUSTERS } from './seedData.js';
+import { COMPLAINTS, ALL_CLUSTERS } from './seedData.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -48,9 +48,9 @@ async function clearAndReseed() {
     batch.set(docRef, c);
   });
 
-  // Add new clusters
-  console.log(`Adding ${CLUSTERS.length} new clusters...`);
-  CLUSTERS.forEach((c) => {
+  // Add all clusters (Varanasi & Lucknow)
+  console.log(`Adding ${ALL_CLUSTERS.length} new clusters (Varanasi & Lucknow)...`);
+  ALL_CLUSTERS.forEach((c) => {
     const docRef = doc(collection(db, 'clusters'), c.id);
     batch.set(docRef, c);
   });

@@ -70,13 +70,14 @@ export async function submitCitizenComplaint(rawText, language = 'hi', constitue
       localComplaints.unshift(complaintDoc);
       localStorage.setItem('jm_complaints', JSON.stringify(localComplaints.slice(0, 100)));
 
-      // Increment cluster count in localStorage clusters
-      const localClusters = JSON.parse(localStorage.getItem('jm_clusters') || '[]');
-      const matched = localClusters.find(c => c.id === extractedData.cluster_id);
+      // Increment cluster count in localStorage clusters and notify App
+      const localClusters = JSON.parse(localStorage.getItem('janmitra_clusters') || '[]');
+      const matched = localClusters.find(c => c.id === extractedData.cluster_id || (c.ward === extractedData.location?.ward && c.issue_type === extractedData.issue_type));
       if (matched) {
         matched.complaint_count = (matched.complaint_count || 0) + 1;
         matched.recurrence_score = Math.min(1.0, (matched.recurrence_score || 0.5) + 0.04);
-        localStorage.setItem('jm_clusters', JSON.stringify(localClusters));
+        localStorage.setItem('janmitra_clusters', JSON.stringify(localClusters));
+        window.dispatchEvent(new Event('janmitra_clusters_updated'));
       }
     } catch (e) {
       console.warn("Local storage update error:", e);
