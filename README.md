@@ -10,7 +10,7 @@
 [![Firebase Firestore](https://img.shields.io/badge/Firebase-Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
 [![Leaflet GIS](https://img.shields.io/badge/GIS-Leaflet_1.9-199900?style=for-the-badge&logo=leaflet&logoColor=white)](https://leafletjs.com)
 [![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4.3-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
   <b>Bridging the ₹5-Crore MPLADS Gap: Transforming unstructured citizen grievances in Hindi, Bhojpuri, and English into mathematically optimal, equitable, and cross-sectoral civic development portfolios.</b>
